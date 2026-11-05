@@ -50,7 +50,7 @@ the same redacted call JSON.
 ## Settings
 
 Read from the extension's scoped settings file
-(`<configDir>/settings/warden.json`), re-read on every tool call. Every
+(`<configDir>/settings/sigrun-warden.json`), re-read on every tool call. Every
 invalid key falls back to its default with one `console.warn` naming the
 key (once per key per process).
 

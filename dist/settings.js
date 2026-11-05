@@ -1,6 +1,7 @@
 /**
  * Warden settings: parsed from the extension's settings document
- * (`host.stores.settings.get("warden")`). Every invalid value falls back
+ * (the extension's own scoped settings document, `settings/sigrun-warden.json`).
+ * Every invalid value falls back
  * to its default with ONE `console.warn` naming the key, at most once
  * per key per process — `parseSettings` runs per factory, so the dedup
  * set is module-scoped; tests that need a fresh warn pass new keys or
