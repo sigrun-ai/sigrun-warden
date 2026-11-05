@@ -10,6 +10,7 @@ import type {
 } from "@sigrun/sigrun/extension";
 
 import { buildCard, CardStore, type Card } from "./cards.js";
+import { HoldLog, type HoldRecord } from "./log.js";
 import { parseSettings } from "./settings.js";
 import { skillsInRun } from "./skills.js";
 
@@ -22,8 +23,8 @@ export function createWardenCommands(
 	return [
 		{
 			name: "warden",
-			description: "Skill cards: list, show, and rebuild",
-			args: "cards | card <skill> [--rebuild]",
+			description: "Skill cards: list, show, rebuild; hold log: list",
+			args: "cards | card <skill> [--rebuild] | holds [n]",
 			run: async (ctx) => ({
 				notice: await runWardenCommands(host, ctx.conversationId, ctx.args),
 			}),
@@ -46,7 +47,46 @@ async function runWardenCommands(
 		if (rebuild) return cardRebuild(host, conversationId, skill);
 		return cardShow(host, skill);
 	}
-	return "usage: /warden cards | /warden card <skill> [--rebuild]";
+	if (sub === "holds") return holdsList(host, rest[0]);
+	return "usage: /warden cards | /warden card <skill> [--rebuild] | /warden holds [n]";
+}
+
+const HOLDS_DEFAULT = 20;
+
+/**
+ * `/warden holds [n]` (warden spec §3.6): the newest `n` hold-log
+ * records, NEWEST FIRST (default 20; n <= 0 → an empty listing). The
+ * log's `call` field is stored redacted (route.ts appends through
+ * pi-warden's `redact`), so the listing renders it verbatim — never
+ * re-derive from anything unmasked.
+ */
+async function holdsList(host: SigrunHost, countArg: string | undefined): Promise<string> {
+	let n = HOLDS_DEFAULT;
+	if (countArg !== undefined) {
+		const parsed = Number.parseInt(countArg, 10);
+		if (!Number.isFinite(parsed)) return "usage: /warden holds [n]";
+		n = parsed;
+	}
+	if (n <= 0) return "";
+	const log = new HoldLog(
+		`${host.stores.paths.state}/holds.jsonl`,
+		() => new Date(),
+	);
+	const records = await log.recent(n);
+	if (records.length === 0) return "no holds recorded";
+	// `recent` is oldest-first within the window; the listing is newest first.
+	return records.reverse().map(holdLine).join("\n");
+}
+
+function holdLine(record: HoldRecord): string {
+	const parts = [
+		record.at,
+		`conv ${String(record.conversationId)}`,
+		record.tool,
+		record.action,
+	];
+	if (record.outcome !== undefined) parts.push(record.outcome);
+	return parts.join(" · ");
 }
 
 async function cardsList(host: SigrunHost): Promise<string> {

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `/warden holds [n]` (default 20): the newest hold-log records, newest
+  first (`at · conv · tool · action · outcome`), rendered from the log's
+  redacted `call` field; a missing log answers "no holds recorded".
+- Operator README: the routing matrix, every setting with its default,
+  the no-decision-model behaviour, what reaches the decision model
+  (all redacted), the cards commands, the `ask_user_question` interplay,
+  and the explicit not-built list.
+
 - Extension scaffold: factory declares the `sigrun.warden` extension with
   the `warden.confirm` interaction kind and an empty `ToolTask` hook.
 - Settings parsing (`parseSettings`): spec defaults, per-key fallback with

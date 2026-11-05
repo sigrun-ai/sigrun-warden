@@ -5,8 +5,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
+import { redact } from "pi-warden";
 
 import { buildCard, CardStore } from "../src/cards.js";
+import { HoldLog } from "../src/log.js";
 import { createWardenCommands } from "../src/commands.js";
 import { defaultSettings } from "../src/settings.js";
 import {
@@ -157,5 +159,82 @@ describe("/warden commands", () => {
 		const card = await store.get(hashOf(BODY));
 		expect(card).toBeDefined();
 		expect(result?.notice).toBe(card!.text);
+	});
+
+	it("holds lists the newest n records, redacted", async () => {
+		fake = await createFakeHost({});
+		const log = new HoldLog(
+			`${fake.host.stores.paths.state}/holds.jsonl`,
+			() => new Date(),
+		);
+		const SECRET = "sk-live-warden-secret-value";
+		// Four records, oldest first; the middle one carries a masked
+		// secret in `call` (the same shape every append writes).
+		const seeds = [
+			{ at: "2026-01-01T00:00:01.000Z", tool: "bash", action: "steer" as const },
+			{ at: "2026-01-01T00:00:02.000Z", tool: "acme-media/torrents_remove", action: "hold" as const, outcome: "approved" as const, call: redact(JSON.stringify({ token: SECRET, ids: [7] })) },
+			{ at: "2026-01-01T00:00:03.000Z", tool: "bash", action: "block" as const, outcome: "declined" as const },
+			{ at: "2026-01-01T00:00:04.000Z", tool: "acme-media/torrents_list", action: "allow-judged" as const },
+		];
+		for (const seed of seeds) {
+			await log.append({
+				conversationId: 7,
+				call: "{}",
+				...seed,
+			});
+		}
+		const command = wardenCommand();
+		const result = await command.run({
+			conversationId: CONVERSATION,
+			args: "holds 2",
+			principal: ALICE,
+			host: fake.host,
+		});
+		const notice = result?.notice ?? "";
+		const lines = notice.split("\n");
+		// Newest FIRST, exactly n=2.
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain("2026-01-01T00:00:04.000Z");
+		expect(lines[0]).toContain("acme-media/torrents_list");
+		expect(lines[1]).toContain("2026-01-01T00:00:03.000Z");
+		expect(lines[1]).toContain("block");
+		expect(lines[1]).toContain("declined");
+		// The stored raw secret never reaches the listing (the record was
+		// seeded REDACTED; the listing renders what the log holds).
+		expect(notice).not.toContain(SECRET);
+
+		// Default n=20 covers all four; the whole log stays redacted.
+		const all = await command.run({
+			conversationId: CONVERSATION,
+			args: "holds",
+			principal: ALICE,
+			host: fake.host,
+		});
+		const allLines = (all?.notice ?? "").split("\n");
+		expect(allLines).toHaveLength(4);
+		expect(allLines[0]).toContain("00:00:04");
+		expect(allLines[3]).toContain("00:00:01");
+		expect(all?.notice).not.toContain(SECRET);
+
+		// n <= 0 → empty; no log file → a clean sentence.
+		const zero = await command.run({
+			conversationId: CONVERSATION,
+			args: "holds 0",
+			principal: ALICE,
+			host: fake.host,
+		});
+		expect(zero?.notice).toBe("");
+		const empty = await createFakeHost({});
+		try {
+			const emptyResult = await createWardenCommands(empty.host)[0]!.run({
+				conversationId: CONVERSATION,
+				args: "holds",
+				principal: ALICE,
+				host: empty.host,
+			});
+			expect(emptyResult?.notice).toBe("no holds recorded");
+		} finally {
+			await empty.cleanup();
+		}
 	});
 });
