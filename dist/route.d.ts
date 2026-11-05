@@ -1,9 +1,9 @@
 /**
- * Routing without a decision model (warden spec §3.2): deny blocks in
- * every presence; internal blocks curators outright; live holds a call
- * on an interaction question; job holds block + escalate with one-shot
- * grants. The judge (Task 12) and clearances (Task 14) slot in later —
- * without a decision model a cleared call takes the block path too.
+ * Routing (warden spec §3.2): deny blocks in every presence; internal
+ * blocks curators outright; live judges then holds on an interaction
+ * question; job checks grants first, then clearances — a cleared call
+ * runs only after the per-target card check, everything else blocks +
+ * escalates with one-shot grants.
  */
 import type { Context } from "@earendil-works/chord";
 import type { ToolHookCall } from "@earendil-works/pi-durable";

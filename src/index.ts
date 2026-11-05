@@ -25,7 +25,8 @@ import { StateStore } from "./state.js";
  * Task 11 wires the ToolTask hook's beforeTool/afterTool for the
  * NO-decision-model path: live conversations hold a call on an
  * interaction question; job runs block + escalate (one-shot grants).
- * The judge (Task 12) and clearances (Task 14) slot in later.
+ * The judge (Task 12) drives live calls; the clearance + card-check
+ * path (Task 14) drives cleared job calls.
  */
 export default function createWarden(
 	host: SigrunHost,
@@ -237,3 +238,7 @@ export {
 } from "./cards.js";
 export type { Card } from "./cards.js";
 export { createWardenCommands } from "./commands.js";
+export { targetsOf } from "./targets.js";
+export { EVIDENCE_BUDGET_BYTES, evidenceFor } from "./evidence.js";
+export { cardCheck } from "./card-check.js";
+export type { CardCheckInput, CardCheckResult } from "./card-check.js";

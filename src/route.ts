@@ -1,9 +1,9 @@
 /**
- * Routing without a decision model (warden spec §3.2): deny blocks in
- * every presence; internal blocks curators outright; live holds a call
- * on an interaction question; job holds block + escalate with one-shot
- * grants. The judge (Task 12) and clearances (Task 14) slot in later —
- * without a decision model a cleared call takes the block path too.
+ * Routing (warden spec §3.2): deny blocks in every presence; internal
+ * blocks curators outright; live judges then holds on an interaction
+ * question; job checks grants first, then clearances — a cleared call
+ * runs only after the per-target card check, everything else blocks +
+ * escalates with one-shot grants.
  */
 import type { Context } from "@earendil-works/chord";
 import type { ToolHookCall } from "@earendil-works/pi-durable";
@@ -13,10 +13,16 @@ import type { SigrunHost } from "@sigrun/sigrun/extension";
 import type { ConversationId } from "@earendil-works/pi-durable";
 
 import type { Classification } from "./classify.js";
+import { cardCheck } from "./card-check.js";
+import { buildCard } from "./cards.js";
+import type { Card } from "./cards.js";
 import type { Presence, RunInfo } from "./context.js";
+import { EVIDENCE_BUDGET_BYTES, evidenceFor } from "./evidence.js";
 import { holdForPerson } from "./interaction.js";
 import { raiseEscalation, resolveGrant, takeGrant } from "./escalate.js";
+import { skillsInRun } from "./skills.js";
 import { callFingerprint, grantKey } from "./state.js";
+import { targetsOf } from "./targets.js";
 import type { StateStore } from "./state.js";
 import type { HoldLog } from "./log.js";
 import type { WardenSettings } from "./settings.js";
@@ -386,6 +392,53 @@ async function jobRoute(
 		});
 		return undefined;
 	}
+	if (taken.status !== "none") {
+		// A grant exists in a non-approving state (open, answered-deny):
+		// it decides before the clearance path (brief step 1: the grant
+		// check first, unchanged from Task 11). Release this call's slot
+		// first, then take the block + raise path (the raise dedups onto
+		// the EXISTING item, so no duplicate).
+		await input.store.update(input.conversationId, (state) => {
+			state.reservations = state.reservations.filter(
+				(entry) => !(entry.grantKey === key && entry.callId === call.id),
+			);
+		});
+		return jobRaise(input, reasons, logBase);
+	}
+
+	// Task 14: a call CLEARED for this job + tool may run autonomously,
+	// but only after the per-target card check. The clearance is a
+	// settings entry (`{job, tools}`) — never a skill. Everything else
+	// keeps the Task 11 block + escalate path below.
+	const cleared = input.settings.clearances.some(
+		(clearance) =>
+			clearance.job === presence.jobId && clearance.tools.includes(call.name),
+	);
+	if (cleared) {
+		// The card-check path does not use the grant reservation: release
+		// the placeholder slot before judging.
+		await input.store.update(input.conversationId, (state) => {
+			state.reservations = state.reservations.filter(
+				(entry) => !(entry.grantKey === key && entry.callId === call.id),
+			);
+		});
+		return clearedJobRoute(input, reasons, logBase);
+	}
+	return jobRaise(input, reasons, logBase);
+}
+
+/**
+ * The Task 11 tail: raise (idempotent by grant key) and block. Split
+ * out so jobRoute's post-grant no-grant exit can share it.
+ */
+async function jobRaise(
+	input: RouteInput,
+	reasons: readonly string[],
+	logBase: LogBase,
+): Promise<{ block?: string } | undefined> {
+	const { presence, call } = input;
+	if (presence.kind !== "job") throw new Error("jobRaise in a non-job presence");
+	const key = grantKey(call.name, call.arguments);
 
 	// No usable grant: if a sibling is still deciding this key, wait for
 	// its outcome — a granted sibling makes this call 'dup', a raised one
@@ -445,6 +498,134 @@ async function jobRoute(
 	return {
 		block: `Not cleared for this job without a person's approval; raised escalation ${id}.`,
 	};
+}
+
+const MAX_TARGETS = 16;
+
+/**
+ * The cleared-job path (Task 14, brief order): a cleared destructive
+ * call runs autonomously only after a per-target card check against the
+ * decision model. Every failure mode blocks + escalates — never runs.
+ */
+async function clearedJobRoute(
+	input: RouteInput,
+	reasons: readonly string[],
+	logBase: LogBase,
+): Promise<{ block?: string } | undefined> {
+	const { call, presence } = input;
+	if (presence.kind !== "job") throw new Error("clearedJobRoute outside a job presence");
+
+	const blockEscalate = async (block: string, escalateReasons: readonly string[]) => {
+		const raised = await raiseEscalation(
+			input.host,
+			call,
+			grantKey(call.name, call.arguments),
+			presence.jobId,
+			presence.owner,
+			escalateReasons,
+			input.conversationId,
+		);
+		await input.log.append({
+			...callLog(input, logBase),
+			at: new Date().toISOString(),
+			action: "escalate",
+			outcome: "escalated",
+		});
+		if (raised.id === undefined) {
+			return {
+				block: `${block}; no escalation inbox is installed. Reasons: ${escalateReasons.join("; ")}`,
+			};
+		}
+		return { block: `${block}; raised escalation ${raised.id}.` };
+	};
+
+	// 1. No decision model (undefined judge, or the cooldown active →
+	// decisionsJudge returned undefined upstream; a thrown judgment →
+	// unjudgeable below). All no-model outcomes block + escalate.
+	const coolingDown = input.cooldown?.active === true;
+	if (input.judge === undefined || coolingDown) {
+		return blockEscalate(
+			`Not running ${call.name} autonomously: no decision model available`,
+			[...reasons, "no decision model available"],
+		);
+	}
+
+	// 2. A tainted run never runs autonomously this run.
+	const state = await input.store.load(input.conversationId);
+	if (state.tainted === true) {
+		return blockEscalate(
+			`Not running ${call.name} autonomously: instructions found in tool output this run`,
+			[...reasons, "instructions found in tool output this run"],
+		);
+	}
+
+	// 3. Over 16 targets: steer the split, no decision request.
+	const targets = targetsOf(call.arguments);
+	if (targets.length > MAX_TARGETS) {
+		return blockEscalate(
+			`Not running ${call.name} autonomously: too many targets (${targets.length}); split this into calls of at most ${MAX_TARGETS} targets`,
+			[...reasons, "too many targets"],
+		);
+	}
+
+	// 4. The governing cards: those of skillsInRun whose text names the
+	// tool's mcpName or sigrun name. A missing card may be built inline.
+	const skills = skillsInRun(input.run.entries);
+	const cards: Card[] = [];
+	for (const skill of skills) {
+		const card = await buildCard(input.host, skill, input.settings);
+		if (card === undefined) continue;
+		cards.push(card);
+	}
+	const names = [input.classification.kind === "destructive" ? input.classification.mcp?.mcpName : undefined, call.name].filter(
+		(name): name is string => name !== undefined,
+	);
+	const governing = cards.filter((card) =>
+		names.some((name) => card.text.includes(name)),
+	);
+	const displayName =
+		input.classification.kind === "destructive" && input.classification.mcp !== undefined
+			? input.classification.mcp.mcpName
+			: call.name;
+	if (governing.length === 0) {
+		return blockEscalate(
+			`Not running ${call.name} autonomously: no skill card covers ${displayName}`,
+			[...reasons, `no skill card covers ${displayName}`],
+		);
+	}
+
+	// 5. The card check.
+	const outcome = await cardCheck({
+		judge: input.judge,
+		cards: governing,
+		call,
+		...(input.classification.kind === "destructive" &&
+		input.classification.mcp !== undefined
+			? { mcpName: input.classification.mcp.mcpName }
+			: {}),
+		targets,
+		evidence: evidenceFor(input.run, targets, EVIDENCE_BUDGET_BYTES),
+		threshold: input.settings.thresholds.card,
+	});
+	if (outcome.pass === true) {
+		await input.log.append({
+			...callLog(input, logBase),
+			at: new Date().toISOString(),
+			action: "allow-judged",
+			scores: outcome.scores,
+		});
+		return undefined;
+	}
+	if (outcome.pass === "unjudgeable") {
+		return blockEscalate(
+			`Not running ${call.name} autonomously: no decision model available (${outcome.reason})`,
+			[...reasons, `no decision model available (${outcome.reason})`],
+		);
+	}
+	return blockEscalate(
+		`Not running ${call.name} autonomously: the card check failed for ${outcome.failing.join(", ")} (${outcome.reasons.join("; ")})`,
+		[...reasons, ...outcome.reasons],
+	);
 }
 
 export interface AfterGrantContext {
