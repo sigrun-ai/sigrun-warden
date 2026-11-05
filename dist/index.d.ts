@@ -26,3 +26,8 @@ export { Cooldown, decisionsJudge } from "./judge.js";
 export { clearAskQuestion } from "./questions.js";
 export { evaluateLive, judgeBashUnknown } from "./live.js";
 export type { LiveInput, LiveOutcome } from "./live.js";
+export { skillTagsInText, skillsInRun } from "./skills.js";
+export type { SkillSeen, SkillTag } from "./skills.js";
+export { buildCard, CARD_MAX_BYTES, CARD_SYSTEM_PROMPT, CARD_TIMEOUT_MS, CardStore, resetInflightForTests, } from "./cards.js";
+export type { Card } from "./cards.js";
+export { createWardenCommands } from "./commands.js";

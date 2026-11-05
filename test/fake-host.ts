@@ -61,7 +61,11 @@ export function assistantEntry(): {
 }
 
 /** A pi.tool-result entry for `toolName` with one text block. */
-export function toolResultEntry(toolName: string, text: string): {
+export function toolResultEntry(
+	toolName: string,
+	text: string,
+	callId: string = `${toolName}-1`,
+): {
 	id: EntryId;
 	conversationId: ConversationId;
 	kind: string;
@@ -74,11 +78,35 @@ export function toolResultEntry(toolName: string, text: string): {
 		model: [
 			{
 				role: "toolResult",
-				toolCallId: `${toolName}-1`,
+				toolCallId: callId,
 				toolName,
 				content: [{ type: "text", text }],
 				isError: false,
 				timestamp: 0,
+			},
+		],
+	};
+}
+
+/** A pi.assistant entry carrying one tool call (the args half of a result pair). */
+export function toolCallEntry(
+	toolName: string,
+	args: Record<string, unknown>,
+	callId: string = `${toolName}-1`,
+): {
+	id: EntryId;
+	conversationId: ConversationId;
+	kind: string;
+	model: unknown[];
+} {
+	return {
+		id: nextEntryId++ as EntryId,
+		conversationId: 0 as ConversationId,
+		kind: "pi.assistant",
+		model: [
+			{
+				role: "assistant",
+				toolCalls: [{ id: callId, name: toolName, arguments: args }],
 			},
 		],
 	};
@@ -103,6 +131,8 @@ export interface FakeHostOptions {
 	hookResults?: unknown[];
 	/** Queue of `decisions.evaluate` results; the last one repeats. A thunk THROWS (a transport failure). */
 	decisionResults?: unknown[];
+	/** `models.complete` implementation; absent → a fixed `{text: "card", model: "acme/utility-1"}` reply. */
+	complete?: (input: unknown) => Promise<{ text: string; model: string }>;
 }
 
 export interface FakeInteractionCalls {
@@ -137,6 +167,8 @@ export interface FakeHost {
 	readonly entriesQueries: readonly unknown[];
 	/** Every `decisions.evaluate` call (request + opts), in order. */
 	readonly decisionCalls: readonly { request: unknown; opts: unknown }[];
+	/** Every `models.complete` input, in order. */
+	readonly modelCalls: readonly unknown[];
 	/** Append more `decisions.evaluate` results to the queue. */
 	pushDecisionResults(...results: unknown[]): void;
 	cleanup(): Promise<void>;
@@ -167,6 +199,7 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 	const entriesQueries: unknown[] = [];
 	const decisionCalls: { request: unknown; opts: unknown }[] = [];
 	const decisionResults = [...(options.decisionResults ?? [])];
+	const modelCalls: unknown[] = [];
 	const notUsed = (): never => {
 		throw new Error("not used in warden tests");
 	};
@@ -331,6 +364,14 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 					: (hookResults[0] ?? { status: "absent" });
 			},
 		},
+		models: {
+			list: async () => [],
+			complete: async (input: unknown) => {
+				modelCalls.push(input);
+				if (options.complete !== undefined) return options.complete(input);
+				return { text: "card", model: "acme/utility-1" };
+			},
+		},
 		decisions: {
 			evaluate: async (request: unknown, opts: unknown) => {
 				decisionCalls.push({ request, opts });
@@ -387,6 +428,7 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 		escalations,
 		entriesQueries,
 		decisionCalls,
+		modelCalls,
 		pushDecisionResults(...results: unknown[]) {
 			decisionResults.push(...results);
 		},

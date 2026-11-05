@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
 import type { HookApi, ToolExecutionResult, ToolHookCall } from "@earendil-works/pi-durable";
 import type { JsonObject } from "@earendil-works/pi-durable";
@@ -5,6 +6,8 @@ import type { SigrunExtensionResult, SigrunHost } from "@sigrun/sigrun/extension
 import type { Context } from "@earendil-works/chord";
 
 import { annotationFromHookResult, classify } from "./classify.js";
+import { buildCard } from "./cards.js";
+import { createWardenCommands } from "./commands.js";
 import { presenceOf, runInfo } from "./context.js";
 import { Cooldown, decisionsJudge } from "./judge.js";
 import { HoldLog } from "./log.js";
@@ -90,6 +93,21 @@ export default function createWarden(
 		api: HookApi,
 		_context: Context,
 	): Promise<ToolExecutionResult | undefined> => {
+		// Task 13: a skill arriving in the run (a `load_skill` result or a
+		// `read` of a SKILL.md path) starts a BACKGROUND card build —
+		// single-flight per body hash; failures warn and never block.
+		const skill = skillFromToolResult(call, result);
+		if (skill !== undefined) {
+			void (async () => {
+				try {
+					const raw = await host.stores.settings.get();
+					const settings = parseSettings(raw, (message) => console.warn(message));
+					await buildCard(host, skill, settings);
+				} catch (error) {
+					console.warn("warden: card build failed", error);
+				}
+			})();
+		}
 		// Task 11 slice: resolve grants. Planted-instructions / masking /
 		// stuck guards are Task 15 and are omitted here entirely.
 		try {
@@ -113,7 +131,62 @@ export default function createWarden(
 			hooks: [hook(ToolTask, { beforeTool, afterTool })],
 		}),
 		interactionKinds: ["warden.confirm"],
+		commands: createWardenCommands(host),
 	};
+}
+
+/**
+ * The skill a tool result introduces into the run, when it does: a
+ * `load_skill` result (name from the call's args) or a `read` of a path
+ * ending SKILL.md (name = the parent directory's leaf). The body is the
+ * result's text.
+ */
+function skillFromToolResult(
+	call: ToolHookCall,
+	result: ToolExecutionResult,
+): { name: string; location?: string; body: string; hash: string } | undefined {
+	const text = toolResultText(result);
+	if (text === "" || result.isError === true) return undefined;
+	const args = call.arguments as Record<string, unknown>;
+	if (call.name === "load_skill") {
+		const name =
+			typeof args.skill === "string"
+				? args.skill
+				: typeof args.name === "string"
+					? args.name
+					: undefined;
+		if (name === undefined) return undefined;
+		return { name, body: text, hash: bodyHash(text) };
+	}
+	if (call.name === "read" && typeof args.path === "string" && args.path.endsWith("SKILL.md")) {
+		const segments = args.path.split("/").filter((part) => part.length > 0);
+		const name = segments.length >= 2 ? segments[segments.length - 2]! : segments[0]!;
+		return { name, location: args.path, body: text, hash: bodyHash(text) };
+	}
+	return undefined;
+}
+
+/** The concatenated text blocks of a tool result's output. */
+function toolResultText(result: ToolExecutionResult): string {
+	const output = result.output;
+	if (typeof output === "string") return output;
+	if (!Array.isArray(output)) return "";
+	const parts: string[] = [];
+	for (const block of output) {
+		if (
+			typeof block === "object" &&
+			block !== null &&
+			(block as { type?: unknown }).type === "text" &&
+			typeof (block as { text?: unknown }).text === "string"
+		) {
+			parts.push((block as { text: string }).text);
+		}
+	}
+	return parts.join("\n");
+}
+
+function bodyHash(body: string): string {
+	return createHash("sha256").update(body, "utf8").digest("hex");
 }
 
 function errorMessage(error: unknown): string {
@@ -149,3 +222,15 @@ export { Cooldown, decisionsJudge } from "./judge.js";
 export { clearAskQuestion } from "./questions.js";
 export { evaluateLive, judgeBashUnknown } from "./live.js";
 export type { LiveInput, LiveOutcome } from "./live.js";
+export { skillTagsInText, skillsInRun } from "./skills.js";
+export type { SkillSeen, SkillTag } from "./skills.js";
+export {
+	buildCard,
+	CARD_MAX_BYTES,
+	CARD_SYSTEM_PROMPT,
+	CARD_TIMEOUT_MS,
+	CardStore,
+	resetInflightForTests,
+} from "./cards.js";
+export type { Card } from "./cards.js";
+export { createWardenCommands } from "./commands.js";
