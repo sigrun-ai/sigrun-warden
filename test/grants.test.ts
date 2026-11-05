@@ -223,6 +223,63 @@ describe("job presence: one-shot grants", () => {
 		expect(env.escalations.items[0]!.resolveOutcome).toBe("done");
 	});
 
+	it("a crash before the take leaves an empty slot: a same-callId re-entry takes again (never runs on a placeholder)", async () => {
+		env = await jobEnv();
+		await route(env, callWith("c1")); // raise
+		env.escalations.answer(KEY, "approve");
+		const item = env.escalations.items[0]!;
+
+		// The crash: the placeholder slot landed in the store but the
+		// process died before takeGrant ran (escalationId still "").
+		await env.store.update(1 as never, (state) => {
+			state.reservations.push({ grantKey: KEY, callId: "c2", escalationId: "" });
+		});
+
+		// A re-entry with the SAME callId must NOT run on the placeholder:
+		// it goes through decide/take again, claims the real grant, runs.
+		const rerun = await route(env, callWith("c2"));
+		expect(rerun).toBeUndefined();
+		expect(item.status).toBe("claimed"); // a REAL take happened
+		const reservation = (await env.store.load(1 as never)).reservations.find(
+			(entry) => entry.grantKey === KEY,
+		);
+		expect(reservation?.escalationId).toBe(item.id);
+	});
+
+	it("a crash before the take with NO grant: the re-entry raises and blocks (never runs on a placeholder)", async () => {
+		env = await jobEnv();
+		await env.store.update(1 as never, (state) => {
+			state.reservations.push({ grantKey: KEY, callId: "c2", escalationId: "" });
+		});
+		const rerun = await route(env, callWith("c2"));
+		expect(rerun?.block).toContain("Not cleared for this job");
+		expect(env.escalations.items).toHaveLength(1); // it raised, not ran
+	});
+
+	it("a throwing take clears the placeholder slot (the key is not wedged as contended)", async () => {
+		env = await jobEnv();
+		const original = env.fake.host.publishedHooks.call;
+		let thrown = false;
+		env.fake.host.publishedHooks.call = (async (
+			name: string,
+			payload: unknown,
+			opts: { user?: string; conversationId?: never; abortSignal?: AbortSignal } | undefined,
+		) => {
+			if (name === "escalation.take" && !thrown) {
+				thrown = true;
+				throw new Error("inbox down");
+			}
+			return original(name, payload, opts);
+		}) as typeof original;
+
+		await expect(route(env, callWith("c1"))).rejects.toThrow("inbox down");
+		// The placeholder slot is gone: the key is free, not wedged.
+		expect((await env.store.load(1 as never)).reservations).toHaveLength(0);
+		// A retry proceeds through the normal decide path (raise + block).
+		const retry = await route(env, callWith("c2"));
+		expect(retry?.block).toContain("raised escalation esc-1");
+	});
+
 	it("take -> another hook blocks the call -> run settles -> the item is reopened, not consumed", async () => {
 		env = await jobEnv();
 		await route(env, callWith("c1"));

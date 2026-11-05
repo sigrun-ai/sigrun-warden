@@ -107,6 +107,8 @@ export interface FakeHost {
 	readonly interactions: FakeInteractionCalls;
 	readonly notices: FakeNotices;
 	readonly escalations: FakeEscalations | undefined;
+	/** Every `conversations.entries` query, in order (order assertions). */
+	readonly entriesQueries: readonly unknown[];
 	cleanup(): Promise<void>;
 }
 
@@ -132,6 +134,7 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 		tone?: string;
 	}[] = [];
 	const escalations = options.escalations;
+	const entriesQueries: unknown[] = [];
 	const notUsed = (): never => {
 		throw new Error("not used in warden tests");
 	};
@@ -205,11 +208,17 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 			}),
 			entries: async (
 				_id: ConversationId,
-				_query: unknown,
+				query: unknown,
 				limit: number,
-			): Promise<{ items: unknown[]; next?: unknown }> => ({
-				items: (options.entries ?? []).slice(0, limit),
-			}),
+			): Promise<{ items: unknown[]; next?: unknown }> => {
+				// Mirror the real host contract: order comes from the query,
+				// default `descending` (EntryQuery.order in pi-durable types).
+				entriesQueries.push(query);
+				const order = (query as { order?: string } | undefined)?.order ?? "descending";
+				const items = [...(options.entries ?? [])];
+				if (order === "descending") items.reverse();
+				return { items: items.slice(0, limit) };
+			},
 			entry: notUsed,
 		},
 		jobs: {
@@ -321,6 +330,7 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 			},
 		},
 		escalations,
+		entriesQueries,
 		cleanup: async () => {
 			await rm(root, { recursive: true, force: true });
 		},

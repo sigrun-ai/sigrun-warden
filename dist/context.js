@@ -57,13 +57,15 @@ function userText(entry) {
 export async function runInfo(host, conversationId) {
     let page;
     try {
-        // Newest-first page; the newest "pi.user" entry is the run start.
-        page = await host.conversations.entries(conversationId, {}, 200);
+        // Oldest-first page (explicit ascending order — the host contract
+        // defaults to descending); the newest "pi.user" entry is the run start.
+        page = await host.conversations.entries(conversationId, { order: "ascending" }, 200);
     }
     catch {
         return { runStart: undefined, request: "", asked: "", entries: [] };
     }
-    // The scan is oldest-first (ascending id order).
+    // The scan is oldest-first (explicit ascending order): walk from the
+    // END so the run start is the NEWEST user input.
     const records = [...page.items];
     let startIndex = -1;
     for (let i = records.length - 1; i >= 0; i -= 1) {

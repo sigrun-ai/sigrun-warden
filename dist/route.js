@@ -1,7 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { redact } from "pi-warden";
 import { holdForPerson } from "./interaction.js";
 import { raiseEscalation, resolveGrant, takeGrant } from "./escalate.js";
 import { grantKey } from "./state.js";
+/** Collision-impossible live-hold nonce (6 random bytes as hex). */
+const newNonce = () => randomBytes(6).toString("hex");
 /** The fingerprint of one call: the grant key WITHOUT the `warden:` prefix. */
 function fingerprint(call) {
     return grantKey(call.name, call.arguments).slice("warden:".length);
@@ -46,13 +49,11 @@ export async function routeOffline(input) {
     if (classification.kind !== "destructive" && classification.kind !== "bash-unknown") {
         // Allowed calls still record their warn rules (classification.warns).
         if (classification.warns !== undefined && classification.warns.length > 0) {
-            const reasons = classification.warns.join("; ");
             await input.log.append({
                 ...callLog(input, logBase),
                 at: new Date().toISOString(),
                 action: "warn",
             });
-            void reasons;
         }
         return undefined;
     }
@@ -96,7 +97,7 @@ export async function routeOffline(input) {
             }
             const record = state.blocked.find((entry) => entry.fingerprint === fp);
             if (record === undefined) {
-                const next = Math.random().toString(16).slice(2, 8);
+                const next = newNonce();
                 state.blocked.push({ fingerprint: fp, at: nowIso, afterEntry: next, status: "pending" });
                 return { nonce: next, newHold: true };
             }
@@ -104,14 +105,14 @@ export async function routeOffline(input) {
                 // The previous question was consumed by an answer: rotate for a
                 // FRESH card. An already-released one-shot allow never frees a
                 // second call.
-                const next = Math.random().toString(16).slice(2, 8);
+                const next = newNonce();
                 record.at = nowIso;
                 record.afterEntry = next;
                 record.status = "pending";
                 state.released = state.released.filter((entry) => entry.fingerprint !== fp);
                 return { nonce: next, newHold: true };
             }
-            return { nonce: record.afterEntry ?? (record.afterEntry = Math.random().toString(16).slice(2, 8)), newHold: false };
+            return { nonce: record.afterEntry ?? (record.afterEntry = newNonce()), newHold: false };
         });
         const outcome = await holdForPerson(input.host, call, input.conversationId, `${fp}-${decision.nonce}`, reasons, input.context);
         return finishAnswer(input, fp, decision.nonce, logBase, outcome);
@@ -135,7 +136,12 @@ async function finishAnswer(input, fp, nonce, logBase, outcome) {
             return true;
         });
         if (!released) {
-            return waitCurrentHold(input, fp, logBase);
+            // Lost the claim race: the sibling already consumed this card.
+            // BLOCK rather than re-poll the answered record (that hot-spins
+            // two disk-writing store.updates per iteration until cancel —
+            // the I-1 livelock). Exactly-one-release is preserved: the model
+            // retries after the sibling settles and gets a fresh card.
+            return { block: "an identical call is already awaiting approval" };
         }
         await input.log.append({
             ...callLog(input, logBase),
@@ -155,9 +161,9 @@ async function finishAnswer(input, fp, nonce, logBase, outcome) {
         return false;
     });
     if (!first) {
-        // A co-waiter already consumed this deny; keep waiting on the
-        // current hold (a deny is per-hold, so a fresh card is asked).
-        return waitCurrentHold(input, fp, logBase);
+        // A co-waiter already consumed this deny: same lost-claim block,
+        // never a spin.
+        return { block: "an identical call is already awaiting approval" };
     }
     await input.log.append({
         ...callLog(input, logBase),
@@ -166,30 +172,6 @@ async function finishAnswer(input, fp, nonce, logBase, outcome) {
         outcome: "declined",
     });
     return { block: `Held ${call.name} denied: ${reason}` };
-}
-/**
- * Re-wait after a lost consumption race: resolve the CURRENT hold nonce
- * for the fingerprint (rotated by the winner's next call or unchanged
- * while pending) and poll it. Rotation is marked `answered` between the
- * claimer's finish and the next beforeTool's rotation; treat that as
- * pending-with-the-stale-answer-consumed, i.e. keep waiting on the same
- * nonce until the next beforeTool rotates it (its poll then seeds a
- * fresh card, which is the fresh question this waiter should observe —
- * simplest correct behavior: wait the CURRENT nonce and let the
- * rotation's fresh card answer it).
- */
-async function waitCurrentHold(input, fp, logBase) {
-    const nonce = await input.store.update(input.conversationId, (state) => {
-        const record = state.blocked.find((entry) => entry.fingerprint === fp);
-        if (record === undefined)
-            return undefined;
-        return record.afterEntry;
-    });
-    if (nonce === undefined)
-        return { block: "warden error: hold state lost" };
-    const outcome = await holdForPerson(input.host, input.call, input.conversationId, `${fp}-${nonce}`, [], // reasons already on the seeded card
-    input.context);
-    return finishAnswer(input, fp, nonce, logBase, outcome);
 }
 /**
  * The job-presence slice. Everything that decides allow/block runs
@@ -228,9 +210,16 @@ async function jobRoute(input, fp, key, reasons, logBase) {
             return { kind: "contended" };
         }
         if (reserved !== undefined) {
-            return { kind: "own", escalationId: reserved.escalationId };
+            // 'own' requires a REAL grant: an empty placeholder slot (pushed
+            // before the take ran) is NOT a reservation — a re-entered call
+            // whose take never landed must decide/take again, never run on
+            // the placeholder alone (the C-1 fail-open hole).
+            if (reserved.escalationId !== "") {
+                return { kind: "own", escalationId: reserved.escalationId };
+            }
+            return { kind: "decide", hasSlot: true };
         }
-        return { kind: "decide" };
+        return { kind: "decide", hasSlot: false };
     });
     if (decision.kind === "dup") {
         return { block: "an identical call is already running under this approval" };
@@ -260,11 +249,25 @@ async function jobRoute(input, fp, key, reasons, logBase) {
     // parallel identical calls serialize (the brief's rule). A slot whose
     // escalation id never lands (take didn't yield a grant) is removed
     // below; one whose call never runs is left for the sweep like a real
-    // reservation.
-    await input.store.update(input.conversationId, (state) => {
-        state.reservations.push({ grantKey: key, callId: call.id, escalationId: "" });
-    });
-    const taken = await takeGrant(input.host, key, presence.jobId, input.conversationId);
+    // reservation. A re-entry onto its OWN empty placeholder keeps that
+    // slot (it serializes against siblings) but takes fresh.
+    if (!decision.hasSlot) {
+        await input.store.update(input.conversationId, (state) => {
+            state.reservations.push({ grantKey: key, callId: call.id, escalationId: "" });
+        });
+    }
+    let taken;
+    try {
+        taken = await takeGrant(input.host, key, presence.jobId, input.conversationId);
+    }
+    catch (error) {
+        // A thrown take must not leak the placeholder: clear the slot so
+        // the key isn't wedged as 'contended' for the rest of the run.
+        await input.store.update(input.conversationId, (state) => {
+            state.reservations = state.reservations.filter((entry) => !(entry.grantKey === key && entry.callId === call.id));
+        });
+        throw error;
+    }
     if (taken.status === "claimed" && taken.option === "approve" && taken.id !== undefined) {
         // Swap the slot's placeholder for the real item id.
         await input.store.update(input.conversationId, (state) => {

@@ -12,7 +12,7 @@ import { HoldLog } from "../src/log.js";
 import { routeOffline, startPruneOnce, resetPruneGuardForTests } from "../src/route.js";
 import { defaultSettings } from "../src/settings.js";
 import { grantKey, StateStore } from "../src/state.js";
-import { createFakeHost, resetEntryIds, userEntry } from "./fake-host.js";
+import { createFakeHost, resetEntryIds, userEntry, assistantEntry } from "./fake-host.js";
 import type { FakeHost } from "./fake-host.js";
 
 const CALL: Pick<ToolHookCall, "name" | "arguments"> = {
@@ -193,6 +193,37 @@ describe("routeOffline: live presence", () => {
 		expect(second).toBeUndefined();
 	});
 
+	it("two identical live calls: one answer releases exactly one; the co-waiter blocks, no spin", async () => {
+		fake = await createFakeHost({
+			owner: "alice",
+			answers: [{ decision: "allow" }],
+		});
+		const { log, store, run } = await routeEnv(fake);
+		const base = {
+			host: fake.host,
+			conversationId: 1 as never,
+			classification: DESTRUCTIVE,
+			presence: { kind: "live", owner: "alice" } as const,
+			run,
+			settings: defaultSettings(),
+			store,
+			log,
+			context: liveContext(),
+		};
+		const [a, b] = await Promise.all([
+			routeOffline({ ...base, call: callWith("c1") }),
+			routeOffline({ ...base, call: callWith("c2") }),
+		]);
+		const allowed = [a, b].filter((result) => result === undefined);
+		const blocked = [a, b].filter((result) => result !== undefined);
+		expect(allowed).toHaveLength(1);
+		expect(blocked).toHaveLength(1);
+		expect(blocked[0]?.block).toBe(
+			"an identical call is already awaiting approval",
+		);
+		expect(fake.interactions.seeded).toHaveLength(1); // ONE shared card
+	});
+
 	it("a nested call (call.parent set) from a codemode script is held the same way", async () => {
 		fake = await createFakeHost({
 			owner: "alice",
@@ -278,6 +309,36 @@ describe("routeOffline: deny and internal", () => {
 			"This call can't run in a curator review: MCP tool acme-media/torrents_remove is annotated destructive",
 		);
 		expect(escalations.calls).toHaveLength(0);
+	});
+});
+
+describe("runInfo: newest user input starts the run", () => {
+	let fake: FakeHost;
+	afterEach(async () => {
+		await fake.cleanup();
+	});
+
+	it("a NEWER user entry moves runStart; an older one does not", async () => {
+		resetEntryIds();
+		const entries: unknown[] = [userEntry("first"), assistantEntry()];
+		fake = await createFakeHost({ owner: "alice", entries });
+		const first = await runInfo(fake.host, 1 as never);
+		expect(first.request).toBe("first");
+		const firstStart = first.runStart;
+
+		entries.push(userEntry("second"), assistantEntry());
+		const second = await runInfo(fake.host, 1 as never);
+		expect(second.request).toBe("second");
+		expect(second.runStart).not.toBe(firstStart);
+	});
+
+	it("requests an explicit ascending order (the host default is descending)", async () => {
+		fake = await createFakeHost({ owner: "alice", entries: [userEntry("hi")] });
+		await runInfo(fake.host, 1 as never);
+		expect(fake.entriesQueries.length).toBeGreaterThan(0);
+		for (const query of fake.entriesQueries) {
+			expect((query as { order?: string }).order).toBe("ascending");
+		}
 	});
 });
 
