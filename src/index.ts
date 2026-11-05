@@ -6,6 +6,7 @@ import type { Context } from "@earendil-works/chord";
 
 import { annotationFromHookResult, classify } from "./classify.js";
 import { presenceOf, runInfo } from "./context.js";
+import { Cooldown, decisionsJudge } from "./judge.js";
 import { HoldLog } from "./log.js";
 import {
 	resolveReservedGrant,
@@ -33,6 +34,8 @@ export default function createWarden(
 		() => new Date(),
 	);
 	const store = new StateStore(host.stores.paths.state);
+	// Instance-wide judge cooldown (in memory — a restart re-trusts the judge).
+	const cooldown = new Cooldown();
 
 	const beforeTool = async (
 		call: ToolHookCall,
@@ -61,6 +64,7 @@ export default function createWarden(
 			);
 			const presence = await presenceOf(host, api.conversationId);
 			const run = await runInfo(host, api.conversationId);
+			const judge = decisionsJudge(host, settings, cooldown);
 			return await routeOffline({
 				host,
 				call,
@@ -72,6 +76,8 @@ export default function createWarden(
 				store,
 				log,
 				context,
+				judge,
+				cooldown,
 			});
 		} catch (error) {
 			return { block: `warden error: ${errorMessage(error)}` };
@@ -139,3 +145,7 @@ export {
 	startPruneOnce,
 } from "./route.js";
 export type { RouteInput } from "./route.js";
+export { Cooldown, decisionsJudge } from "./judge.js";
+export { clearAskQuestion } from "./questions.js";
+export { evaluateLive, judgeBashUnknown } from "./live.js";
+export type { LiveInput, LiveOutcome } from "./live.js";

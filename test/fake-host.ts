@@ -60,6 +60,30 @@ export function assistantEntry(): {
 	return { id: nextEntryId++ as EntryId, conversationId: 0 as ConversationId, kind: "pi.assistant" };
 }
 
+/** A pi.tool-result entry for `toolName` with one text block. */
+export function toolResultEntry(toolName: string, text: string): {
+	id: EntryId;
+	conversationId: ConversationId;
+	kind: string;
+	model: unknown[];
+} {
+	return {
+		id: nextEntryId++ as EntryId,
+		conversationId: 0 as ConversationId,
+		kind: "pi.tool-result",
+		model: [
+			{
+				role: "toolResult",
+				toolCallId: `${toolName}-1`,
+				toolName,
+				content: [{ type: "text", text }],
+				isError: false,
+				timestamp: 0,
+			},
+		],
+	};
+}
+
 export interface FakeHostOptions {
 	/** meta.owner for `conversations.meta`. */
 	owner?: string;
@@ -77,6 +101,8 @@ export interface FakeHostOptions {
 	escalations?: FakeEscalations;
 	/** Annotation / other published-hook results (queue, last repeats). */
 	hookResults?: unknown[];
+	/** Queue of `decisions.evaluate` results; the last one repeats. A thunk THROWS (a transport failure). */
+	decisionResults?: unknown[];
 }
 
 export interface FakeInteractionCalls {
@@ -109,6 +135,10 @@ export interface FakeHost {
 	readonly escalations: FakeEscalations | undefined;
 	/** Every `conversations.entries` query, in order (order assertions). */
 	readonly entriesQueries: readonly unknown[];
+	/** Every `decisions.evaluate` call (request + opts), in order. */
+	readonly decisionCalls: readonly { request: unknown; opts: unknown }[];
+	/** Append more `decisions.evaluate` results to the queue. */
+	pushDecisionResults(...results: unknown[]): void;
 	cleanup(): Promise<void>;
 }
 
@@ -135,6 +165,8 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 	}[] = [];
 	const escalations = options.escalations;
 	const entriesQueries: unknown[] = [];
+	const decisionCalls: { request: unknown; opts: unknown }[] = [];
+	const decisionResults = [...(options.decisionResults ?? [])];
 	const notUsed = (): never => {
 		throw new Error("not used in warden tests");
 	};
@@ -299,6 +331,21 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 					: (hookResults[0] ?? { status: "absent" });
 			},
 		},
+		decisions: {
+			evaluate: async (request: unknown, opts: unknown) => {
+				decisionCalls.push({ request, opts });
+				const next =
+					decisionResults.length > 1
+						? decisionResults.shift()
+						: decisionResults[0];
+				if (typeof next === "function") return (next as () => unknown)();
+				if (next === undefined) {
+					return { ok: false, code: "not_configured", error: "no fake result queued" };
+				}
+				return next;
+			},
+			list: async () => [],
+		},
 		notices: {
 			post: async (input: {
 				user: string;
@@ -339,6 +386,10 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 		},
 		escalations,
 		entriesQueries,
+		decisionCalls,
+		pushDecisionResults(...results: unknown[]) {
+			decisionResults.push(...results);
+		},
 		cleanup: async () => {
 			await rm(root, { recursive: true, force: true });
 		},

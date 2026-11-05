@@ -14,6 +14,8 @@ import type { Presence, RunInfo } from "./context.js";
 import type { StateStore } from "./state.js";
 import type { HoldLog } from "./log.js";
 import type { WardenSettings } from "./settings.js";
+import type { Judge } from "pi-typesafe";
+import { Cooldown } from "./judge.js";
 export interface RouteInput {
     host: SigrunHost;
     call: ToolHookCall;
@@ -26,6 +28,12 @@ export interface RouteInput {
     log: HoldLog;
     /** The hook's own chord context (the interaction poll cancels with it). */
     context: Context;
+    /**
+     * The decisions judge (Task 12), set by the factory; when present the
+     * live path judges destructive calls. `routeOffline` ignores it.
+     */
+    judge?: Judge;
+    cooldown?: Cooldown;
 }
 /**
  * Route one classified call. Returns `{block}` to block, undefined to

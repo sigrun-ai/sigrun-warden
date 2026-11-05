@@ -2,13 +2,11 @@ import { randomBytes } from "node:crypto";
 import { redact } from "pi-warden";
 import { holdForPerson } from "./interaction.js";
 import { raiseEscalation, resolveGrant, takeGrant } from "./escalate.js";
-import { grantKey } from "./state.js";
+import { callFingerprint, grantKey } from "./state.js";
+import { Cooldown } from "./judge.js";
+import { evaluateLive } from "./live.js";
 /** Collision-impossible live-hold nonce (6 random bytes as hex). */
 const newNonce = () => randomBytes(6).toString("hex");
-/** The fingerprint of one call: the grant key WITHOUT the `warden:` prefix. */
-function fingerprint(call) {
-    return grantKey(call.name, call.arguments).slice("warden:".length);
-}
 function callLog(input, base) {
     const presence = input.presence;
     return {
@@ -27,7 +25,7 @@ function callLog(input, base) {
  */
 export async function routeOffline(input) {
     const { classification, presence, call } = input;
-    const fp = fingerprint(call);
+    const fp = callFingerprint(call);
     const key = grantKey(call.name, call.arguments);
     const logBase = {
         conversationId: input.conversationId,
@@ -70,6 +68,24 @@ export async function routeOffline(input) {
             outcome: "declined",
         });
         return { block: `This call can't run in a curator review: ${reason}` };
+    }
+    // Live presence: the Task 12 flow (clear ask, steer, approval on
+    // reply, bash-unknown). Destructive calls go through it only with a
+    // judge; bash-unknown always does (judge-absent is pi-warden's
+    // offline allow). An "ask the person" outcome — or a judge-free
+    // destructive call — takes the Task 11 interaction hold.
+    if (presence.kind === "live" &&
+        (classification.kind === "bash-unknown" || input.judge !== undefined)) {
+        const outcome = await evaluateLive({
+            ...input,
+            judge: input.judge,
+            cooldown: input.cooldown ?? new Cooldown(),
+        });
+        if (outcome.action === "run")
+            return undefined;
+        if (outcome.action === "steer")
+            return { block: outcome.text };
+        // "ask-person" falls through to the interaction hold below.
     }
     // Live presence: an interaction question per fingerprint.
     //

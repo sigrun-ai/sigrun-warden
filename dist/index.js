@@ -1,6 +1,7 @@
 import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
 import { annotationFromHookResult, classify } from "./classify.js";
 import { presenceOf, runInfo } from "./context.js";
+import { Cooldown, decisionsJudge } from "./judge.js";
 import { HoldLog } from "./log.js";
 import { resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
 import { parseSettings } from "./settings.js";
@@ -16,6 +17,8 @@ export default function createWarden(host, deps = {}) {
     void deps;
     const log = new HoldLog(`${host.stores.paths.state}/holds.jsonl`, () => new Date());
     const store = new StateStore(host.stores.paths.state);
+    // Instance-wide judge cooldown (in memory — a restart re-trusts the judge).
+    const cooldown = new Cooldown();
     const beforeTool = async (call, api, context) => {
         // The hook's contract: catch EVERYTHING and block — never let a
         // call through on an exception.
@@ -27,6 +30,7 @@ export default function createWarden(host, deps = {}) {
             const classification = await classify({ name: call.name, arguments: call.arguments }, { annotations, settings });
             const presence = await presenceOf(host, api.conversationId);
             const run = await runInfo(host, api.conversationId);
+            const judge = decisionsJudge(host, settings, cooldown);
             return await routeOffline({
                 host,
                 call,
@@ -38,6 +42,8 @@ export default function createWarden(host, deps = {}) {
                 store,
                 log,
                 context,
+                judge,
+                cooldown,
             });
         }
         catch (error) {
@@ -82,3 +88,6 @@ export { grantKey, StateStore } from "./state.js";
 export { confirmBody, holdForPerson, WARDEN_CONFIRM_KIND } from "./interaction.js";
 export { escalationBody, raiseEscalation, resolveGrant, takeGrant, } from "./escalate.js";
 export { resetPruneGuardForTests, resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
+export { Cooldown, decisionsJudge } from "./judge.js";
+export { clearAskQuestion } from "./questions.js";
+export { evaluateLive, judgeBashUnknown } from "./live.js";

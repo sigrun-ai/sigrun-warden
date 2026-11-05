@@ -20,7 +20,10 @@ export interface ConversationState {
     blocked: {
         fingerprint: string;
         at: string;
+        /** The hold NONCE (the interaction callId suffix) for the Task 11 hold path. */
         afterEntry?: string;
+        /** The newest entry id the block sits after (Task 12: the reply anchor). */
+        atEntry?: string;
         status?: "pending" | "answered" | "released";
     }[];
     /** Answered allows consumed once; a reply releases one call. */
@@ -35,6 +38,11 @@ export interface ConversationState {
         escalationId: string;
     }[];
 }
+/** The fingerprint of one call: the grant key WITHOUT the `warden:` prefix. */
+export declare function callFingerprint(call: {
+    name: string;
+    arguments: Record<string, unknown>;
+}): string;
 export declare function emptyState(): ConversationState;
 /**
  * The on-disk store. `update` runs `fn` under a per-conversation

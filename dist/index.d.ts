@@ -22,3 +22,7 @@ export { confirmBody, holdForPerson, WARDEN_CONFIRM_KIND } from "./interaction.j
 export { escalationBody, raiseEscalation, resolveGrant, takeGrant, } from "./escalate.js";
 export { resetPruneGuardForTests, resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
 export type { RouteInput } from "./route.js";
+export { Cooldown, decisionsJudge } from "./judge.js";
+export { clearAskQuestion } from "./questions.js";
+export { evaluateLive, judgeBashUnknown } from "./live.js";
+export type { LiveInput, LiveOutcome } from "./live.js";

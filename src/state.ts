@@ -49,13 +49,24 @@ export interface ConversationState {
 	blocked: {
 		fingerprint: string;
 		at: string;
+		/** The hold NONCE (the interaction callId suffix) for the Task 11 hold path. */
 		afterEntry?: string;
+		/** The newest entry id the block sits after (Task 12: the reply anchor). */
+		atEntry?: string;
 		status?: "pending" | "answered" | "released";
 	}[];
 	/** Answered allows consumed once; a reply releases one call. */
 	released: { fingerprint: string; replyEntry: string }[];
 	/** One in-flight execution per grant (job presence). */
 	reservations: { grantKey: string; callId: string; escalationId: string }[];
+}
+
+/** The fingerprint of one call: the grant key WITHOUT the `warden:` prefix. */
+export function callFingerprint(call: {
+	name: string;
+	arguments: Record<string, unknown>;
+}): string {
+	return grantKey(call.name, call.arguments).slice("warden:".length);
 }
 
 export function emptyState(): ConversationState {

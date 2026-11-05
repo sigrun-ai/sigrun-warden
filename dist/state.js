@@ -32,6 +32,10 @@ function canonicalize(value) {
         .join(",");
     return `{${body}}`;
 }
+/** The fingerprint of one call: the grant key WITHOUT the `warden:` prefix. */
+export function callFingerprint(call) {
+    return grantKey(call.name, call.arguments).slice("warden:".length);
+}
 export function emptyState() {
     return { steers: 0, blocked: [], released: [], reservations: [] };
 }
