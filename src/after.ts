@@ -60,19 +60,29 @@ const STUCK_NOTICE =
 const PLANTED_MIN_TEXT = 200;
 /** The security-question firing threshold (pi-warden's own 0.7). */
 const SECURITY_THRESHOLD = 0.7;
+/**
+ * Bound on the text sent to the security question: the first 4 KB and
+ * the last 4 KB with an elision marker between. The judgment only needs
+ * to spot instruction-shaped prose, and the head+tail is where planted
+ * instructions live; capping bounds the judge spend on a huge output.
+ */
+const JUDGE_TEXT_BUDGET = 8192;
 /** AttemptWindow bound (pi-warden's own window is 8). */
 const ATTEMPT_WINDOW = 8;
 const STUCK_REPEATS = 3;
 
-/** One AttemptWindow per (conversation, runStart); a new run resets it. */
-const attemptWindows = new Map<string, AttemptWindow>();
+/** One AttemptWindow per conversation; a new run replaces the window. */
+const attemptWindows = new Map<string, { runStart: unknown; window: AttemptWindow }>();
 
 function windowFor(conversationId: ConversationId, runStart: unknown): AttemptWindow {
-	const key = `${String(conversationId)}/${String(runStart ?? "none")}`;
+	const key = String(conversationId);
 	const existing = attemptWindows.get(key);
-	if (existing !== undefined) return existing;
+	if (existing !== undefined && Object.is(existing.runStart, runStart)) return existing.window;
+	// Keying by conversation alone (replacing on a runStart change) bounds
+	// the map to one window per conversation — a (conversation, runStart)
+	// key would retain every past run's full tool output forever.
 	const created = new AttemptWindow(ATTEMPT_WINDOW);
-	attemptWindows.set(key, created);
+	attemptWindows.set(key, { runStart, window: created });
 	return created;
 }
 
@@ -96,6 +106,21 @@ function isTextBlock(value: unknown): value is TextBlock {
 }
 
 /**
+ * The output as a content-block array. `ToolExecutionResult.output` is
+ * typed as content blocks (pi-durable) but runtimes hand back a string
+ * too; normalize a string to ONE text block before masking/appending so
+ * a notice append can never spread a string into per-character blocks.
+ */
+function outputBlocks(result: ToolExecutionResult): TextBlock[] {
+	const output = result.output;
+	if (typeof output === "string") {
+		return output === "" ? [] : [{ type: "text", text: output }];
+	}
+	if (Array.isArray(output)) return output as TextBlock[];
+	return [];
+}
+
+/**
  * The result with every text part redacted, plus the concatenated
  * redacted text. Returns `changed: false` (and the ORIGINAL result)
  * when nothing masked, so the hook can return undefined.
@@ -105,21 +130,10 @@ function maskResult(result: ToolExecutionResult): {
 	text: string;
 	changed: boolean;
 } {
-	const output = result.output;
-	if (typeof output === "string") {
-		const redacted = redact(output);
-		return {
-			// The runtime accepts a string output (index.ts's toolResultText
-			// handles it); the public type only spells out the block array.
-			result: { ...result, output: redacted } as unknown as ToolExecutionResult,
-			text: redacted,
-			changed: redacted !== output,
-		};
-	}
-	if (!Array.isArray(output)) return { result, text: "", changed: false };
+	const blocks = outputBlocks(result);
 	let changed = false;
 	const parts: string[] = [];
-	const blocks = (output as readonly unknown[]).map((block) => {
+	const masked = blocks.map((block) => {
 		if (!isTextBlock(block)) return block;
 		const redacted = redact(block.text as string);
 		parts.push(redacted);
@@ -129,13 +143,27 @@ function maskResult(result: ToolExecutionResult): {
 		}
 		return block;
 	});
+	// A string output is normalized to blocks when masking changed it; a
+	// CLEAN string returns the original result so the hook returns
+	// undefined (no replacement).
 	return {
 		result: changed
-			? ({ ...result, output: blocks } as unknown as ToolExecutionResult)
+			? ({ ...result, output: masked } as unknown as ToolExecutionResult)
 			: result,
 		text: parts.join("\n"),
 		changed,
 	};
+}
+
+/**
+ * `text` capped at the head+tail budget (see JUDGE_TEXT_BUDGET). The
+ * cap applies to the JUDGE input only — masking and notices always see
+ * the full text.
+ */
+function judgeText(text: string): string {
+	if (text.length <= JUDGE_TEXT_BUDGET) return text;
+	const half = Math.floor(JUDGE_TEXT_BUDGET / 2);
+	return `${text.slice(0, half)}\n…\n${text.slice(-half)}`;
 }
 
 /**
@@ -147,7 +175,6 @@ async function appendNotice(
 	ctx: AfterContext,
 	call: ToolHookCall,
 	result: ToolExecutionResult,
-	text: string,
 	notice: string,
 ): Promise<ToolExecutionResult> {
 	const budgeted = await ctx.store.update(ctx.conversationId, (state) => {
@@ -170,7 +197,7 @@ async function appendNotice(
 	if (!budgeted) return result;
 	return {
 		...result,
-		output: [...((result.output as readonly unknown[]) ?? []), { type: "text", text: notice }],
+		output: [...outputBlocks(result), { type: "text", text: notice }],
 	} as ToolExecutionResult;
 }
 
@@ -208,7 +235,7 @@ export async function afterToolGuard(
 		let risk: number | undefined;
 		try {
 			const evaluation = await ctx.judge.evaluate({
-				state: { text: masked.text },
+				state: { text: judgeText(masked.text) },
 				questions: { security_risk: securityQuestion.security_risk },
 			});
 			const answer = evaluation.answers.security_risk;
@@ -222,7 +249,7 @@ export async function afterToolGuard(
 			await ctx.store.update(ctx.conversationId, (state) => {
 				state.tainted = true;
 			});
-			current = await appendNotice(ctx, call, current, masked.text, TAINT_NOTICE);
+			current = await appendNotice(ctx, call, current, TAINT_NOTICE);
 		}
 	}
 
@@ -236,7 +263,7 @@ export async function afterToolGuard(
 	const window = windowFor(ctx.conversationId, ctx.run.runStart);
 	window.push(makeAttempt(call.name, call.arguments as Record<string, unknown>, content, failed));
 	if (failed && window.exactRepeats() >= STUCK_REPEATS) {
-		current = await appendNotice(ctx, call, current, masked.text, STUCK_NOTICE);
+		current = await appendNotice(ctx, call, current, STUCK_NOTICE);
 	}
 
 	return current === result ? undefined : current;

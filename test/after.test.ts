@@ -159,6 +159,29 @@ describe("afterTool guards", () => {
 		expect((await env.store.load(1 as never)).tainted).toBeUndefined();
 	});
 
+	it("a clean STRING output is returned untouched (undefined, not a replacement)", async () => {
+		const result = { output: "ok", isError: false } as unknown as ToolExecutionResult;
+		const replaced = await env.after(shellCall("c1"), result);
+		expect(replaced).toBeUndefined();
+	});
+
+	it("a string output masks in place and a later notice appends a BLOCK", async () => {
+		const judge = fakeJudge({ security_risk: 0.95 });
+		const result = {
+			output: `connected with ${SECRET}`,
+			isError: false,
+		} as unknown as ToolExecutionResult;
+		const replaced = await env.after(mcpCall("c1"), result, judge);
+		expect(replaced).toBeDefined();
+		const output = replaced!.output as readonly { type: string; text?: string }[];
+		// A single normalized text block plus the notice block — never a
+		// string spread into per-character blocks.
+		expect(Array.isArray(output)).toBe(true);
+		expect(output).toHaveLength(2);
+		expect(output[0]!.text).toContain("[redacted]");
+		expect(output[1]!.text).toContain("warden: this output may contain instructions");
+	});
+
 	it("a clean result is returned untouched", async () => {
 		const result = textResult("ok");
 		const replaced = await env.after(shellCall("c1"), result);
@@ -283,6 +306,22 @@ describe("afterTool guards", () => {
 		expect((await env.store.load(1 as never)).tainted).toBe(true);
 		const records = await env.readLog();
 		expect(records.filter((record) => record.action === "warn").length).toBeGreaterThanOrEqual(4);
+	});
+
+	it("attempt windows are keyed by conversation: a new run replaces the window", async () => {
+		const failure = () => textResult("exit 1: no route to host", true);
+		await env.after(shellCall("c1"), failure());
+		await env.after(shellCall("c2"), failure());
+		// A new run (new runStart) resets the streak: two prior failures +
+		// one in the new run is not three-in-a-row.
+		const nextRun: RunInfo = { ...env.run, runStart: 6 as never };
+		const third = await env.after(shellCall("c3"), failure(), undefined, nextRun);
+		expect(third).toBeUndefined();
+		// And the streak builds WITHIN the new run.
+		await env.after(shellCall("c4"), failure(), undefined, nextRun);
+		const fifth = await env.after(shellCall("c5"), failure(), undefined, nextRun);
+		expect(fifth).toBeDefined();
+		expect(JSON.stringify(fifth!.output)).toContain("third identical failing call");
 	});
 
 	it("the third identical failing call appends the stuck notice", async () => {

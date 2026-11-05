@@ -169,10 +169,17 @@ export async function evaluateLive(input) {
     const fp = callFingerprint(input.call);
     const reasons = classification.reasons;
     const tool = input.call.name;
+    // Run boundary FIRST: the taint gate below consumes state.tainted, so
+    // the reset must land before any read of it — otherwise the first
+    // destructive call of a new run steers on the PREVIOUS run's taint.
+    // (Matches the job path, which resets at the top of jobRoute.)
+    const state = await input.store.update(input.conversationId, (s) => {
+        resetRun(s, input);
+        return s;
+    });
     // Step 1–2: this call was held before (the fingerprint is in
     // state.blocked). Read the record first; the reply search and the
     // release's store.update follow.
-    const state = await input.store.load(input.conversationId);
     const record = state.blocked.find((entry) => entry.fingerprint === fp);
     if (record !== undefined) {
         const reply = findReply(input.run.entries, record.atEntry, state.released, fp);

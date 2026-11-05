@@ -209,6 +209,27 @@ describe("evaluateLive: the clear-ask judgment", () => {
 		expect(state.steers).toBe(1);
 	});
 
+	it("a tainted OLD run does not steer the first destructive call of a NEW run", async () => {
+		env = await liveEnv({
+			owner: "alice",
+			entries: [userEntry(CLEAR_TEXT)],
+			decisionResults: [CLEAR_OK],
+		});
+		// The previous run was tainted; this call is a NEW run (runStart
+		// advanced). The run-boundary reset must run BEFORE the taint gate.
+		await env.store.update(1 as never, (state) => {
+			state.runStart = 1 as never;
+			state.tainted = true;
+			state.steers = 2;
+		});
+		const newRun: RunInfo = { ...env.run, runStart: 9 as never };
+		const outcome = await evaluateLive(env.input({ run: newRun }));
+		expect(outcome).toEqual({ action: "run" });
+		const state = await env.store.load(1 as never);
+		expect(state.tainted).toBeUndefined();
+		expect(state.runStart).toBe(9);
+	});
+
 	it("the steer always mentions ask_user_question", async () => {
 		env = await liveEnv({
 			owner: "alice",
