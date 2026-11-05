@@ -1,26 +1,84 @@
 import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
+import { annotationFromHookResult, classify } from "./classify.js";
+import { presenceOf, runInfo } from "./context.js";
+import { HoldLog } from "./log.js";
+import { resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
+import { parseSettings } from "./settings.js";
+import { StateStore } from "./state.js";
 /**
  * The warden factory (arity one for the loader; test deps come second).
- * Task 10 is the scaffold: the extension declares the `warden.confirm`
- * interaction kind and registers the ToolTask hook whose beforeTool /
- * afterTool wiring Task 11 fills in. Settings parsing, classification,
- * and the hold log live in their own modules.
+ * Task 11 wires the ToolTask hook's beforeTool/afterTool for the
+ * NO-decision-model path: live conversations hold a call on an
+ * interaction question; job runs block + escalate (one-shot grants).
+ * The judge (Task 12) and clearances (Task 14) slot in later.
  */
 export default function createWarden(host, deps = {}) {
-    void host;
     void deps;
+    const log = new HoldLog(`${host.stores.paths.state}/holds.jsonl`, () => new Date());
+    const store = new StateStore(host.stores.paths.state);
+    const beforeTool = async (call, api, context) => {
+        // The hook's contract: catch EVERYTHING and block — never let a
+        // call through on an exception.
+        try {
+            const raw = await host.stores.settings.get();
+            const settings = parseSettings(raw, (message) => console.warn(message));
+            startPruneOnce(log, settings.retentionDays);
+            const annotations = async (tool) => annotationFromHookResult(tool, (await host.publishedHooks.call("mcp.tool-annotations", { tool }, { conversationId: api.conversationId })));
+            const classification = await classify({ name: call.name, arguments: call.arguments }, { annotations, settings });
+            const presence = await presenceOf(host, api.conversationId);
+            const run = await runInfo(host, api.conversationId);
+            return await routeOffline({
+                host,
+                call,
+                conversationId: api.conversationId,
+                classification,
+                presence,
+                run,
+                settings,
+                store,
+                log,
+                context,
+            });
+        }
+        catch (error) {
+            return { block: `warden error: ${errorMessage(error)}` };
+        }
+    };
+    const afterTool = async (call, result, api, _context) => {
+        // Task 11 slice: resolve grants. Planted-instructions / masking /
+        // stuck guards are Task 15 and are omitted here entirely.
+        try {
+            await resolveReservedGrant({
+                host,
+                call,
+                conversationId: api.conversationId,
+                result,
+                store,
+            });
+        }
+        catch (error) {
+            console.warn("warden: afterTool grant resolution failed", error);
+        }
+        return undefined;
+    };
     return {
         extension: defineExtension({
             name: "sigrun.warden",
             tools: [],
-            hooks: [
-                hook(ToolTask, {}),
-            ],
+            hooks: [hook(ToolTask, { beforeTool, afterTool })],
         }),
         interactionKinds: ["warden.confirm"],
     };
+}
+function errorMessage(error) {
+    return error instanceof Error ? error.message : String(error);
 }
 export { parseSettings, defaultSettings, resetWarnedKeys } from "./settings.js";
 export { classify, annotationFromHookResult } from "./classify.js";
 export { HoldLog } from "./log.js";
 export { globToRegExp, matchGlob } from "./glob.js";
+export { presenceOf, runInfo } from "./context.js";
+export { grantKey, StateStore } from "./state.js";
+export { confirmBody, holdForPerson, WARDEN_CONFIRM_KIND } from "./interaction.js";
+export { escalationBody, raiseEscalation, resolveGrant, takeGrant, } from "./escalate.js";
+export { resetPruneGuardForTests, resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
