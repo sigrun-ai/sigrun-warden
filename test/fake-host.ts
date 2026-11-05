@@ -214,8 +214,16 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 				// Mirror the real host contract: order comes from the query,
 				// default `descending` (EntryQuery.order in pi-durable types).
 				entriesQueries.push(query);
-				const order = (query as { order?: string } | undefined)?.order ?? "descending";
-				const items = [...(options.entries ?? [])];
+				const q = query as { order?: string; minEntryId?: number | bigint } | undefined;
+				const order = q?.order ?? "descending";
+				const minEntryId = q?.minEntryId;
+				let items = [...(options.entries ?? [])];
+				if (minEntryId !== undefined) {
+					const min = Number(minEntryId);
+					items = items.filter(
+						(entry) => Number((entry as { id: number | bigint }).id) >= min,
+					);
+				}
 				if (order === "descending") items.reverse();
 				return { items: items.slice(0, limit) };
 			},

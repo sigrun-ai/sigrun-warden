@@ -153,8 +153,10 @@ describe("routeOffline: live presence", () => {
 		const first = routeOffline({ ...base, call: callWith("c1") });
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		// The retry joins the SAME card; exactly one of the two waits is
-		// released by the single answer (consumption is one-shot), the
-		// other is cancelled by the test teardown.
+		// released by the single answer (consumption is one-shot). The
+		// co-waiter does not resolve here: it blocks only when the sibling
+		// settles (proven by the previous test); the test teardown cancels
+		// this waiter.
 		const second = routeOffline({ ...base, call: callWith("c2") });
 		const firstResult = await first;
 		expect(firstResult).toBeUndefined();
@@ -332,13 +334,42 @@ describe("runInfo: newest user input starts the run", () => {
 		expect(second.runStart).not.toBe(firstStart);
 	});
 
-	it("requests an explicit ascending order (the host default is descending)", async () => {
+	it("beyond the oldest page, the newest user entry still starts the current run", async () => {
+		// Fix round 2 (Task 11 re-review): a single ascending page reads the
+		// OLDEST 200 entries, freezing runStart at the conversation's start
+		// once the transcript outgrows it. The run window must anchor at the
+		// NEWEST user input instead.
+		resetEntryIds();
+		const entries: unknown[] = [userEntry("first")];
+		for (let i = 0; i < 228; i += 1) entries.push(assistantEntry());
+		entries.push(userEntry("second"));
+		for (let i = 0; i < 10; i += 1) entries.push(assistantEntry());
+		expect(entries).toHaveLength(240);
+		const newestUser = entries[229] as { id: number | bigint };
+		fake = await createFakeHost({ owner: "alice", entries });
+
+		const run = await runInfo(fake.host, 1 as never);
+		expect(Number(run.runStart)).toBe(Number(newestUser.id));
+		expect(run.request).toBe("second");
+		expect(run.entries[0]!.id).toBe(newestUser.id);
+		expect(run.entries).toHaveLength(11);
+		// The descending probe runs first; the ascending window follows it.
+		expect(fake.entriesQueries.length).toBeGreaterThanOrEqual(2);
+		expect((fake.entriesQueries[0] as { order?: string }).order).toBe("descending");
+		const windowQuery = fake.entriesQueries[1] as {
+			order?: string;
+			minEntryId?: number | bigint;
+		};
+		expect(windowQuery.order).toBe("ascending");
+		expect(Number(windowQuery.minEntryId)).toBe(Number(newestUser.id));
+	});
+
+	it("probes descending first, then reads the run window ascending", async () => {
 		fake = await createFakeHost({ owner: "alice", entries: [userEntry("hi")] });
 		await runInfo(fake.host, 1 as never);
-		expect(fake.entriesQueries.length).toBeGreaterThan(0);
-		for (const query of fake.entriesQueries) {
-			expect((query as { order?: string }).order).toBe("ascending");
-		}
+		expect(fake.entriesQueries.length).toBe(2);
+		expect((fake.entriesQueries[0] as { order?: string }).order).toBe("descending");
+		expect((fake.entriesQueries[1] as { order?: string }).order).toBe("ascending");
 	});
 });
 

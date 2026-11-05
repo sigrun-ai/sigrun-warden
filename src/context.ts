@@ -87,23 +87,48 @@ export async function runInfo(
 	host: SigrunHost,
 	conversationId: ConversationId,
 ): Promise<RunInfo> {
-	let page;
+	let records: EntryRecord[];
 	try {
-		// Oldest-first page (explicit ascending order — the host contract
-		// defaults to descending); the newest "pi.user" entry is the run start.
-			page = await host.conversations.entries(
-						conversationId,
-						{ order: "ascending" },
-						200,
+		// Newest-first probe: find the newest "pi.user" entry id. Anchoring
+		// the window at it keeps the run current even when the transcript
+		// outgrows a single page — a plain ascending page would read the
+		// OLDEST entries and freeze runStart near the conversation start.
+		const probe = await host.conversations.entries(
+			conversationId,
+			{ order: "descending" },
+			200,
+			undefined,
+		);
+		const newestUser = probe.items.find((entry) => entry.kind === "pi.user");
+		if (newestUser === undefined) {
+			// No user input in the newest page: fall back to the plain
+			// ascending read (whole page / empty run).
+			const page = await host.conversations.entries(
+				conversationId,
+				{ order: "ascending" },
+				200,
+				undefined,
 			);
-		} catch {
-			return { runStart: undefined, request: "", asked: "", entries: [] };
+			records = [...page.items];
+		} else {
+			// The run window: from the newest user input onward, oldest
+			// first — what runStart/request/asked/entries derive from.
+			const page = await host.conversations.entries(
+				conversationId,
+				{ order: "ascending", minEntryId: newestUser.id },
+				200,
+				undefined,
+			);
+			records = [...page.items];
 		}
-		// The scan is oldest-first (explicit ascending order): walk from the
-		// END so the run start is the NEWEST user input.
-		const records = [...page.items];
+	} catch {
+		return { runStart: undefined, request: "", asked: "", entries: [] };
+	}
+	// The window starts at the newest user input, so the first "pi.user"
+	// entry walking forward is the run start (kept as a scan so the
+	// fallback page — which may predate it — still anchors correctly).
 	let startIndex = -1;
-	for (let i = records.length - 1; i >= 0; i -= 1) {
+	for (let i = 0; i < records.length; i += 1) {
 		if (records[i]!.kind === "pi.user") {
 			startIndex = i;
 			break;
