@@ -111,6 +111,11 @@ export async function takeGrant(
 		{ key, jobId },
 		{ conversationId },
 	)) as { status: string; id?: string; option?: string };
+	// A missing provider answers `absent`; that is NOT a grant in a
+	// non-approving state (the caller's `!== "none"` gate would read it as
+	// one and never reach the clearance path — the Task 16 e2e regression).
+	// Absence maps to `none`: no inbox, no grant, keep going.
+	if (result.status === "absent") return { status: "none" };
 	return {
 		status: result.status,
 		...(result.id === undefined ? {} : { id: result.id }),

@@ -334,4 +334,37 @@ describe("job presence: no escalation provider", () => {
 		expect(notice.title).toBe(`Held: ${TOOL}`);
 		expect(notice.tone).toBe("warn");
 	});
+
+	it("an absent escalation provider does NOT shadow a clearance (the card-check path still runs)", async () => {
+		// Found by Task 16's core e2e: a no-inbox boot returned
+		// `take` = `absent`, which `route.ts` misread as "a grant exists
+		// in a non-approving state" and raised — a cleared call was
+		// blocked on a job whose clearance was set. `absent` (no
+		// provider) is NOT a grant; only a real `open`/`answered` item
+		// blocks the clearance path.
+		resetNoProviderWarning();
+		env = await jobEnv({ escalationsAvailable: false });
+		const settings = {
+			...defaultSettings(),
+			clearances: [{ job: JOB, tools: [TOOL] }],
+		};
+		const run = await runInfo(env.fake.host, 1 as never);
+		// No judge in this offline route → the cleared path blocks +
+		// escalates with the NO-DECISION-MODEL reason, proving the
+		// clearance (not the absent provider) drove the outcome.
+		const result = await routeOffline({
+			host: env.fake.host,
+			call: callWith("c1"),
+			conversationId: 1 as never,
+			classification: DESTRUCTIVE,
+			presence: { kind: "job", jobId: JOB, owner: "alice" },
+			run,
+			settings,
+			store: env.store,
+			log: env.log,
+			context: liveContext(),
+		});
+		expect(result?.block).toContain("no decision model available");
+		expect(result?.block).not.toContain("Not cleared for this job");
+	});
 });

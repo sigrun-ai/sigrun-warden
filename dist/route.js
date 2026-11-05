@@ -310,6 +310,10 @@ async function jobRoute(input, fp, key, reasons, logBase) {
         // check first, unchanged from Task 11). Release this call's slot
         // first, then take the block + raise path (the raise dedups onto
         // the EXISTING item, so no duplicate).
+        //
+        // NOTE: `absent` (no escalation provider) is NOT a grant: a
+        // cleared call must not be shadowed by a missing inbox. `takeGrant`
+        // maps the registry's `absent` to `none` (Task 16 e2e regression).
         await input.store.update(input.conversationId, (state) => {
             state.reservations = state.reservations.filter((entry) => !(entry.grantKey === key && entry.callId === call.id));
         });

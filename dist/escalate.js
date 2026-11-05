@@ -53,6 +53,12 @@ export async function raiseEscalation(host, call, key, jobId, owner, reasons, co
 /** Claim an answered item for the calling conversation (or report none). */
 export async function takeGrant(host, key, jobId, conversationId) {
     const result = (await host.publishedHooks.call("escalation.take", { key, jobId }, { conversationId }));
+    // A missing provider answers `absent`; that is NOT a grant in a
+    // non-approving state (the caller's `!== "none"` gate would read it as
+    // one and never reach the clearance path — the Task 16 e2e regression).
+    // Absence maps to `none`: no inbox, no grant, keep going.
+    if (result.status === "absent")
+        return { status: "none" };
     return {
         status: result.status,
         ...(result.id === undefined ? {} : { id: result.id }),
