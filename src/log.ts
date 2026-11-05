@@ -3,7 +3,7 @@
  * `prune` keeps hold/block/escalate records for `holds` days and every
  * other action for `calls` days.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 export interface HoldRecord {
@@ -52,22 +52,42 @@ export class HoldLog {
 			throw error;
 		}
 		const records: HoldRecord[] = [];
-		for (const line of text.split("\n")) {
-			const trimmed = line.trim();
+		const lines = text.split("\n");
+		for (let index = 0; index < lines.length; index += 1) {
+			const trimmed = lines[index].trim();
 			if (trimmed === "") continue;
-			records.push(JSON.parse(trimmed) as HoldRecord);
+			try {
+				records.push(JSON.parse(trimmed) as HoldRecord);
+			} catch {
+				// A torn trailing line after a crash must not brick the log.
+				console.warn(`holds log: skipping unparseable line ${index + 1}`);
+			}
 		}
 		return records;
 	}
 
 	async append(record: HoldRecord): Promise<void> {
-		const records = await this.#read();
-		records.push(record);
-		await this.#write(records);
+		await mkdir(dirname(this.#path), { recursive: true });
+		// A crash can leave a torn trailing line without its newline; prefix
+		// one so the new record does not merge into the torn fragment.
+		const handle = await open(this.#path, "a+");
+		try {
+			let prefix = "";
+			const { size } = await handle.stat();
+			if (size > 0) {
+				const last = Buffer.alloc(1);
+				await handle.read(last, 0, 1, size - 1);
+				if (last[0] !== 0x0a) prefix = "\n";
+			}
+			await handle.appendFile(`${prefix}${JSON.stringify(record)}\n`, "utf8");
+		} finally {
+			await handle.close();
+		}
 	}
 
 	/** The newest `n` records, oldest-first within the window. */
 	async recent(n: number): Promise<HoldRecord[]> {
+		if (n <= 0) return [];
 		const records = await this.#read();
 		return records.slice(-n);
 	}
@@ -92,9 +112,16 @@ export class HoldLog {
 		if (kept.length !== records.length) await this.#write(kept);
 	}
 
+	/**
+	 * Rewrite the whole log (prune only). Written to a temp file and
+	 * renamed over the log; a concurrent `append` may still lose the
+	 * rename race, so prune-vs-append races are accepted with a warn.
+	 */
 	async #write(records: readonly HoldRecord[]): Promise<void> {
 		await mkdir(dirname(this.#path), { recursive: true });
 		const text = records.map((record) => JSON.stringify(record)).join("\n");
-		await writeFile(this.#path, text === "" ? "" : `${text}\n`, "utf8");
+		const tmp = `${this.#path}.tmp`;
+		await writeFile(tmp, text === "" ? "" : `${text}\n`, "utf8");
+		await rename(tmp, this.#path);
 	}
 }

@@ -72,6 +72,40 @@ describe("classify: core tools and bash", () => {
 	});
 });
 
+it("bash heredoc body is data to matchPatterns (never destructive)", async () => {
+	// matchPatterns treats heredoc bodies as data; classify passes the raw
+	// command, so a destructive line inside a heredoc must NOT match…
+	const heredoc = "cat <<EOF\nrm -rf /data\nEOF";
+	const asHeredoc = await classify(
+		{ name: "bash", arguments: { command: heredoc } },
+		annotationDeps({ status: "no-provider" }),
+	);
+	// A heredoc body is data to pi-warden: matchPatterns ignores it. With
+	// the operator guard, the script is not plain read-only syntax, so the
+	// verdict is bash-unknown — never destructive.
+	expect(asHeredoc.kind).toBe("bash-unknown");
+	// An inert heredoc body is also bash-unknown (not read-only syntax,
+	// no destructive hit) — pinned so the heredoc carve-out is visible.
+	const benignHeredoc = await classify(
+		{ name: "bash", arguments: { command: "cat <<EOF\nhello\nEOF" } },
+		annotationDeps({ status: "no-provider" }),
+	);
+	expect(benignHeredoc.kind).toBe("bash-unknown");
+	// …while the same words as a real command are destructive (control).
+	const direct = await classify(
+		{ name: "bash", arguments: { command: "rm -rf /data" } },
+		annotationDeps({ status: "no-provider" }),
+	);
+	expect(direct.kind).toBe("destructive");
+	// The heredoc body itself is what pi-warden ignores, not the
+	// surrounding command: wrap a real rm in `cat` and it still matches.
+	const wrapped = await classify(
+		{ name: "bash", arguments: { command: "cat /etc/motd; rm -rf /data" } },
+		annotationDeps({ status: "no-provider" }),
+	);
+	expect(wrapped.kind).toBe("destructive");
+});
+
 describe("classify: MCP tools", () => {
 	it("acme-media/torrents_list readOnly → allow", async () => {
 		const result = await classify(

@@ -1,7 +1,7 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HoldLog, type HoldRecord } from "../src/log.js";
 
@@ -37,6 +37,47 @@ describe("HoldLog", () => {
 		const one = await log.recent(1);
 		expect(one).toHaveLength(1);
 		expect(one[0].tool).toBe("acme-media/torrents_remove");
+	});
+
+	it("concurrent appends both land", async () => {
+		const log = new HoldLog(join(root, "holds.jsonl"), () => new Date());
+		await Promise.all([
+			log.append(record({ tool: "bash" })),
+			log.append(record({ tool: "write" })),
+			log.append(record({ tool: "edit" })),
+		]);
+		const all = await log.recent(10);
+		expect(all).toHaveLength(3);
+		expect(new Set(all.map((r) => r.tool))).toEqual(new Set(["bash", "write", "edit"]));
+	});
+
+	it("recent(0) returns [] and negative n returns []", async () => {
+		const log = new HoldLog(join(root, "holds.jsonl"), () => new Date());
+		await log.append(record());
+		expect(await log.recent(0)).toEqual([]);
+		expect(await log.recent(-3)).toEqual([]);
+	});
+
+	it("a torn trailing line is skipped with a warn, and append still works", async () => {
+		const path = join(root, "holds.jsonl");
+		const log = new HoldLog(path, () => new Date());
+		await log.append(record({ tool: "bash" }));
+		await appendFile(path, '{"at":"2026-11-05T12:00:00.000Z","tool":"wri', "utf8");
+
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const records = await log.recent(10);
+			expect(records).toHaveLength(1);
+			expect(records[0].tool).toBe("bash");
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(warn.mock.calls[0][0]).toContain("line 2");
+
+			await log.append(record({ tool: "read" }));
+			const after = await log.recent(10);
+			expect(after.map((r) => r.tool)).toEqual(["bash", "read"]);
+		} finally {
+			warn.mockRestore();
+		}
 	});
 
 	it("recent on a missing file returns []", async () => {

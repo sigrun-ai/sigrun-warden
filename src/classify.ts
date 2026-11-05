@@ -149,9 +149,18 @@ export async function classify(
 		return withWarns({ kind: "allow", reason: `core tool ${name} is read-only` });
 	}
 
-	// 3. Bash.
+	// 3. Bash. A command that embeds a heredoc (or any control operator)
+	// is not plain read-only syntax: skip the read-only name check and go
+	// straight to the destructive patterns, whose matcher treats heredoc
+	// bodies as data. An unmatched compound lands as bash-unknown (held),
+	// which is the safe class for "we cannot tell".
 	if (name === "bash") {
-		if (command !== undefined && isReadOnlyCommand(command)) {
+		if (
+			command !== undefined &&
+			!/[<&|;`]/.test(command) &&
+			!command.includes("$(") &&
+			isReadOnlyCommand(command)
+		) {
 			return withWarns({ kind: "allow", reason: "read-only shell command" });
 		}
 		// matchPatterns does its own comment/heredoc handling — never pre-strip.
