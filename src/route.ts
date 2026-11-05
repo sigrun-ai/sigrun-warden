@@ -411,7 +411,13 @@ async function jobRoute(
 		action: "escalate",
 		outcome: "escalated",
 	});
-	const id = raised.id ?? "unknown";
+	const id = raised.id;
+	if (id === undefined) {
+		// No escalation inbox answered: name the reasons, never "unknown".
+		return {
+			block: `Not cleared for this job without a person's approval; no escalation inbox is installed. Reasons: ${reasons.join("; ")}`,
+		};
+	}
 	return {
 		block: `Not cleared for this job without a person's approval; raised escalation ${id}.`,
 	};

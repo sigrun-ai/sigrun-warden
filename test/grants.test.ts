@@ -324,7 +324,9 @@ describe("job presence: no escalation provider", () => {
 		resetNoProviderWarning();
 		env = await jobEnv({ escalationsAvailable: false });
 		const result = await route(env, callWith("c1"));
-		expect(result?.block).toContain("Not cleared for this job");
+		expect(result?.block).toBe(
+			`Not cleared for this job without a person's approval; no escalation inbox is installed. Reasons: ${DESTRUCTIVE.reasons.join("; ")}`,
+		);
 		expect(env.fake.notices.posted).toHaveLength(1);
 		const notice = env.fake.notices.posted[0]!;
 		expect(notice.user).toBe("alice");
