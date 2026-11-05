@@ -3,7 +3,7 @@
  * `--rebuild` from the newest body seen in this conversation's run.
  * Answers are notices (the ExtensionCommandContribution contract).
  */
-import type { ConversationId } from "@earendil-works/pi-durable";
+import type { ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import type {
 	ExtensionCommandContribution,
 	SigrunHost,
@@ -72,13 +72,14 @@ async function cardRebuild(
 	conversationId: ConversationId,
 	skill: string,
 ): Promise<string> {
+	// Newest page first: a skill loaded late in a long run must be found.
 	const page = await host.conversations.entries(
 		conversationId,
-		{ order: "ascending" },
+		{ order: "descending" },
 		RUN_PAGE,
 		undefined,
 	);
-	const seen = skillsInRun(page.items as never);
+	const seen = skillsInRun(page.items as EntryRecord[]);
 	const copy = seen.find((entry) => entry.name === skill);
 	if (copy === undefined) {
 		return `no copy of ${skill} in this conversation; load it first`;

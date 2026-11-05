@@ -127,6 +127,15 @@ async function buildCardUncached(
 	skill: SkillSeen,
 	settings: WardenSettings,
 ): Promise<Card | undefined> {
+	// Store first: a card already built for this body is returned
+	// without a model call.
+	const store = new CardStore(host.stores.paths.data);
+	try {
+		const stored = await store.get(skill.hash);
+		if (stored !== undefined) return stored;
+	} catch {
+		// An unreadable store falls through to a fresh build.
+	}
 	let answer: { text: string; model: string };
 	try {
 		answer = await host.models.complete({
@@ -149,7 +158,6 @@ async function buildCardUncached(
 		model: answer.model,
 		text: answer.text,
 	};
-	const store = new CardStore(host.stores.paths.data);
 	try {
 		await store.put(card);
 	} catch {

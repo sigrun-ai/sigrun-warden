@@ -45,12 +45,9 @@ describe("/warden commands", () => {
 		await fake.cleanup();
 	});
 
-	function wardenCommand(entries: EntryRecord[]) {
-		fakeEntries = entries;
+	function wardenCommand() {
 		return createWardenCommands(fake.host)[0]!;
 	}
-
-	let fakeEntries: EntryRecord[] = [];
 
 	it("cards lists", async () => {
 		fake = await createFakeHost({});
@@ -64,7 +61,7 @@ describe("/warden commands", () => {
 			{ name: "acme-tidy", body: OTHER, hash: hashOf(OTHER) },
 			defaultSettings(),
 		);
-		const command = wardenCommand([]);
+		const command = wardenCommand();
 		const result = await command.run({
 			conversationId: CONVERSATION,
 			args: "cards",
@@ -87,7 +84,7 @@ describe("/warden commands", () => {
 			{ name: "acme-cleanup", body: BODY, hash: hashOf(BODY) },
 			defaultSettings(),
 		);
-		const command = wardenCommand([]);
+		const command = wardenCommand();
 		const result = await command.run({
 			conversationId: CONVERSATION,
 			args: "card acme-cleanup",
@@ -99,7 +96,7 @@ describe("/warden commands", () => {
 
 	it("--rebuild without a copy explains", async () => {
 		fake = await createFakeHost({});
-		const command = wardenCommand([userEntry("please clean up") as unknown as EntryRecord]);
+		const command = wardenCommand();
 		const result = await command.run({
 			conversationId: CONVERSATION,
 			args: "card acme-cleanup --rebuild",
@@ -119,7 +116,7 @@ describe("/warden commands", () => {
 			toolResultEntry("load_skill", BODY),
 		] as unknown as EntryRecord[];
 		fake = await createFakeHost({ entries });
-		const command = wardenCommand(entries);
+		const command = wardenCommand();
 		const result = await command.run({
 			conversationId: CONVERSATION,
 			args: "card acme-cleanup --rebuild",
@@ -132,6 +129,33 @@ describe("/warden commands", () => {
 		const card = await store.get(hashOf(BODY));
 		expect(card).toBeDefined();
 		expect(card!.skill).toBe("acme-cleanup");
+		expect(result?.notice).toBe(card!.text);
+	});
+
+	it("--rebuild pages newest-first so a skill loaded LATE in a long conversation is found", async () => {
+		// 502 entries; the skill load sits at the very END. An
+		// oldest-first page of 500 fills on the chatter and never sees
+		// it; a newest-first page does.
+		const entries: EntryRecord[] = [];
+		for (let i = 0; i < 500; i++) {
+			entries.push(userEntry(`chatter ${i}`) as unknown as EntryRecord);
+		}
+		entries.push(
+			toolCallEntry("load_skill", { skill: "acme-cleanup" }) as unknown as EntryRecord,
+			toolResultEntry("load_skill", BODY) as unknown as EntryRecord,
+		);
+		fake = await createFakeHost({ entries });
+		const command = wardenCommand();
+		const result = await command.run({
+			conversationId: CONVERSATION,
+			args: "card acme-cleanup --rebuild",
+			principal: ALICE,
+			host: fake.host,
+		});
+		expect(fake.modelCalls).toHaveLength(1);
+		const store = new CardStore(fake.host.stores.paths.data);
+		const card = await store.get(hashOf(BODY));
+		expect(card).toBeDefined();
 		expect(result?.notice).toBe(card!.text);
 	});
 });

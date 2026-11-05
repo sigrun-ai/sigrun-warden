@@ -19,3 +19,15 @@ export declare function skillTagsInText(text: string): SkillTag[];
  * each body's newest sighting, descending).
  */
 export declare function skillsInRun(entries: readonly EntryRecord[]): SkillSeen[];
+export interface SkillBlock {
+    name: string;
+    location?: string;
+    body: string;
+}
+/**
+ * Every `<skill name="…">…</skill>` block in the text, in order. The
+ * body is trimmed of one surrounding newline pair and of core's
+ * `References are relative to …` preamble, so it equals the SKILL.md
+ * text the other channels capture.
+ */
+export declare function skillBlocksInText(text: string): SkillBlock[];

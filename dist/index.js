@@ -63,7 +63,10 @@ export default function createWarden(host, deps = {}) {
                 try {
                     const raw = await host.stores.settings.get();
                     const settings = parseSettings(raw, (message) => console.warn(message));
-                    await buildCard(host, skill, settings);
+                    const card = await buildCard(host, skill, settings);
+                    if (card === undefined) {
+                        console.warn(`warden: card build failed for ${skill.name}`);
+                    }
                 }
                 catch (error) {
                     console.warn("warden: card build failed", error);

@@ -49,7 +49,8 @@ async function cardShow(host, skill) {
     return cards[0].text;
 }
 async function cardRebuild(host, conversationId, skill) {
-    const page = await host.conversations.entries(conversationId, { order: "ascending" }, RUN_PAGE, undefined);
+    // Newest page first: a skill loaded late in a long run must be found.
+    const page = await host.conversations.entries(conversationId, { order: "descending" }, RUN_PAGE, undefined);
     const seen = skillsInRun(page.items);
     const copy = seen.find((entry) => entry.name === skill);
     if (copy === undefined) {

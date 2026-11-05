@@ -43,16 +43,29 @@ describe("skillTagsInText", () => {
 });
 
 describe("skillsInRun", () => {
-	it('a <skill name="acme-cleanup" location="…"> block in the job prompt is collected', () => {
-		const prompt = `Please run the cleanup.\n<skill name="acme-cleanup" location="https://example.invalid/skills/acme-cleanup/SKILL.md">\n${BODY}\n</skill>`;
+	it('a core-shape <skill> block (with the References preamble) is collected as the bare body', () => {
+		// Core's real expansion (dist/commands/expand.js):
+		// <skill name="…" location="…">\nReferences are relative to <dir>.\n\n<body>\n</skill>
+		const prompt = `Please run the cleanup.\n<skill name="acme-cleanup" location="/home/alice/skills/acme-cleanup/SKILL.md">\nReferences are relative to /home/alice/skills/acme-cleanup.\n\n${BODY}\n</skill>`;
 		const seen = skillsInRun([userEntry(prompt) as unknown as EntryRecord]);
 		expect(seen).toHaveLength(1);
+		// The preamble is NOT part of the body: the hash matches the bare
+		// SKILL.md text and no absolute path reaches the card prompt.
 		expect(seen[0]).toEqual<SkillSeen>({
 			name: "acme-cleanup",
-			location: "https://example.invalid/skills/acme-cleanup/SKILL.md",
+			location: "/home/alice/skills/acme-cleanup/SKILL.md",
 			body: BODY,
 			hash: HASH,
 		});
+	});
+
+	it("two same-named <skill> blocks each hash their own body", () => {
+		const edited = `${BODY}\n3. Never touch seeding torrents.`;
+		const prompt = `<skill name="acme-cleanup">\n${BODY}\n</skill>\nlater\n<skill name="acme-cleanup">\n${edited}\n</skill>`;
+		const seen = skillsInRun([userEntry(prompt) as unknown as EntryRecord]);
+		expect(seen).toHaveLength(2);
+		const hashes = seen.map((skill) => skill.hash).sort();
+		expect(hashes).toEqual([HASH, sha(edited)].sort());
 	});
 
 	it("a load_skill result is collected with its name", () => {

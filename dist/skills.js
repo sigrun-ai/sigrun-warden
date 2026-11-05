@@ -128,21 +128,17 @@ export function skillsInRun(entries) {
     };
     for (const entry of entries) {
         const id = BigInt(entry.id);
-        // Channel 1: <skill> blocks in expanded user/job prompts.
+        // Channel 1: <skill> blocks in expanded user/job prompts. One
+        // scan consumes every block, so two same-named blocks each hash
+        // their own body.
         if (entry.kind === "pi.user" || entry.kind === "sigrun.user.expanded") {
             const text = entryText(entry);
-            for (const tag of skillTagsInText(text)) {
-                // The body is the text of the skill's SKILL.md as expanded;
-                // the tag text alone carries name/location. When the body
-                // follows the tag inside the block, capture the block's text.
-                const body = skillBodyForTag(text, tag.name);
-                if (body === undefined)
-                    continue;
+            for (const block of skillBlocksInText(text)) {
                 collect({
-                    name: tag.name,
-                    ...(tag.location === undefined ? {} : { location: tag.location }),
-                    body,
-                    hash: bodyHash(body),
+                    name: block.name,
+                    ...(block.location === undefined ? {} : { location: block.location }),
+                    body: block.body,
+                    hash: bodyHash(block.body),
                 }, id);
             }
         }
@@ -176,19 +172,32 @@ export function skillsInRun(entries) {
         .sort((a, b) => (a.seenAt > b.seenAt ? -1 : a.seenAt < b.seenAt ? 1 : 0))
         .map((entry) => entry.skill);
 }
-/** The body inside `<skill name="…">…</skill>` (undefined when unclosed). */
-function skillBodyForTag(text, name) {
-    const open = new RegExp(`<skill\\s+name="${escapeRegExp(name)}"(?:\\s+location="[^"]*")?\\s*>`).exec(text);
-    if (open === null)
-        return undefined;
-    const close = text.indexOf("</skill>", open.index + open[0].length);
-    if (close < 0)
-        return undefined;
-    const body = text.slice(open.index + open[0].length, close);
-    // Trim ONE surrounding newline pair — the block expansion indents the
-    // body between the tags.
-    return body.replace(/^\n/, "").replace(/\n$/, "");
-}
-function escapeRegExp(text) {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const SKILL_BLOCK_RE = /<skill\s+name="([^"]+)"(?:\s+location="([^"]*)")?\s*>([\s\S]*?)<\/skill>/g;
+// Core's expansion (dist/commands/expand.js) prefixes the body with a
+// `References are relative to <dir>.` preamble line and a blank line —
+// neither is part of the skill body (and the absolute dir must never
+// reach a card prompt).
+const CORE_PREAMBLE_RE = /^References are relative to \S+\.\n\n/;
+/**
+ * Every `<skill name="…">…</skill>` block in the text, in order. The
+ * body is trimmed of one surrounding newline pair and of core's
+ * `References are relative to …` preamble, so it equals the SKILL.md
+ * text the other channels capture.
+ */
+export function skillBlocksInText(text) {
+    const blocks = [];
+    SKILL_BLOCK_RE.lastIndex = 0;
+    for (;;) {
+        const match = SKILL_BLOCK_RE.exec(text);
+        if (match === null)
+            break;
+        const body = match[3]
+            .replace(/^\n/, "")
+            .replace(/\n$/, "")
+            .replace(CORE_PREAMBLE_RE, "");
+        const name = match[1];
+        const location = match[2];
+        blocks.push(location === undefined ? { name, body } : { name, location, body });
+    }
+    return blocks;
 }

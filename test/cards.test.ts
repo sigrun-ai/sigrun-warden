@@ -119,6 +119,17 @@ describe("buildCard", () => {
 		expect(fake.modelCalls).toHaveLength(1);
 	});
 
+	it("two SEQUENTIAL builds of one body call the model once (store-first)", async () => {
+		fake = await createFakeHost();
+		const s = skill(BODY);
+		const first = await buildCard(fake.host, s, defaultSettings());
+		const second = await buildCard(fake.host, s, defaultSettings());
+		expect(fake.modelCalls).toHaveLength(1);
+		expect(second).toEqual(first);
+		const store = new CardStore(fake.host.stores.paths.data);
+		expect(second).toEqual(await store.get(s.hash));
+	});
+
 	it("cardModel is passed as model, else role utility", async () => {
 		fake = await createFakeHost();
 		await buildCard(fake.host, skill(BODY), defaultSettings());
