@@ -5,6 +5,7 @@ import type { JsonObject } from "@earendil-works/pi-durable";
 import type { SigrunExtensionResult, SigrunHost } from "@sigrun/sigrun/extension";
 import type { Context } from "@earendil-works/chord";
 
+import { afterToolGuard } from "./after.js";
 import { annotationFromHookResult, classify } from "./classify.js";
 import { buildCard } from "./cards.js";
 import { createWardenCommands } from "./commands.js";
@@ -112,8 +113,7 @@ export default function createWarden(
 				}
 			})();
 		}
-		// Task 11 slice: resolve grants. Planted-instructions / masking /
-		// stuck guards are Task 15 and are omitted here entirely.
+		// Task 11 slice: resolve grants.
 		try {
 			await resolveReservedGrant({
 				host,
@@ -125,7 +125,27 @@ export default function createWarden(
 		} catch (error) {
 			console.warn("warden: afterTool grant resolution failed", error);
 		}
-		return undefined;
+		// Task 15, LAST in the pipeline (skill collection and grant
+		// resolution above): masking → planted-instructions taint → stuck.
+		// A thrown guard must never drop the tool's result.
+		try {
+			const raw = await host.stores.settings.get();
+			const settings = parseSettings(raw, (message) => console.warn(message));
+			const run = await runInfo(host, api.conversationId);
+			return await afterToolGuard(call, result, {
+				host,
+				conversationId: api.conversationId,
+				run,
+				settings,
+				store,
+				log,
+				judge: decisionsJudge(host, settings, cooldown),
+				context: _context,
+			});
+		} catch (error) {
+			console.warn("warden: afterTool guard failed", error);
+			return undefined;
+		}
 	};
 
 	return {
@@ -222,6 +242,8 @@ export {
 	startPruneOnce,
 } from "./route.js";
 export type { RouteInput } from "./route.js";
+export { afterToolGuard, resetAttemptWindowsForTests } from "./after.js";
+export type { AfterContext } from "./after.js";
 export { Cooldown, decisionsJudge } from "./judge.js";
 export { clearAskQuestion } from "./questions.js";
 export { evaluateLive, judgeBashUnknown } from "./live.js";

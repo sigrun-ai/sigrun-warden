@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
+import { afterToolGuard } from "./after.js";
 import { annotationFromHookResult, classify } from "./classify.js";
 import { buildCard } from "./cards.js";
 import { createWardenCommands } from "./commands.js";
@@ -74,8 +75,7 @@ export default function createWarden(host, deps = {}) {
                 }
             })();
         }
-        // Task 11 slice: resolve grants. Planted-instructions / masking /
-        // stuck guards are Task 15 and are omitted here entirely.
+        // Task 11 slice: resolve grants.
         try {
             await resolveReservedGrant({
                 host,
@@ -88,7 +88,28 @@ export default function createWarden(host, deps = {}) {
         catch (error) {
             console.warn("warden: afterTool grant resolution failed", error);
         }
-        return undefined;
+        // Task 15, LAST in the pipeline (skill collection and grant
+        // resolution above): masking → planted-instructions taint → stuck.
+        // A thrown guard must never drop the tool's result.
+        try {
+            const raw = await host.stores.settings.get();
+            const settings = parseSettings(raw, (message) => console.warn(message));
+            const run = await runInfo(host, api.conversationId);
+            return await afterToolGuard(call, result, {
+                host,
+                conversationId: api.conversationId,
+                run,
+                settings,
+                store,
+                log,
+                judge: decisionsJudge(host, settings, cooldown),
+                context: _context,
+            });
+        }
+        catch (error) {
+            console.warn("warden: afterTool guard failed", error);
+            return undefined;
+        }
     };
     return {
         extension: defineExtension({
@@ -161,6 +182,7 @@ export { grantKey, StateStore } from "./state.js";
 export { confirmBody, holdForPerson, WARDEN_CONFIRM_KIND } from "./interaction.js";
 export { escalationBody, raiseEscalation, resolveGrant, takeGrant, } from "./escalate.js";
 export { resetPruneGuardForTests, resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
+export { afterToolGuard, resetAttemptWindowsForTests } from "./after.js";
 export { Cooldown, decisionsJudge } from "./judge.js";
 export { clearAskQuestion } from "./questions.js";
 export { evaluateLive, judgeBashUnknown } from "./live.js";
