@@ -1,0 +1,12 @@
+node_modules/
+# dist/ is INTENTIONALLY tracked: git-source installs load dist/index.js directly.
+.superpowers/
+REPORT.md
+.vitest/
+*.tgz
+.pi/
+coverage/
+.env
+*.pem
+.npmrc
+pi-warden.md
