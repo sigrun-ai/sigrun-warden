@@ -94,8 +94,10 @@ export class HoldLog {
     }
     /**
      * Rewrite the whole log (prune only). Written to a temp file and
-     * renamed over the log; a concurrent `append` may still lose the
-     * rename race, so prune-vs-append races are accepted with a warn.
+     * renamed over the log. A concurrent `append` may still lose the
+     * rename race; this is accepted silently because `append` reopens
+     * by path, so only a same-instant append can be lost, and prune is
+     * boot-scoped by design (Task 11).
      */
     async #write(records) {
         await mkdir(dirname(this.#path), { recursive: true });

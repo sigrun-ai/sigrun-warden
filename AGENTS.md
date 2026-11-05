@@ -17,7 +17,7 @@ classification (`matchPatterns`, `isReadOnlyCommand`).
   is module-scoped, tests use the exported `resetWarnedKeys()`.
 - `src/classify.ts` — the §3.1 classification order; do not reorder.
 - `src/log.ts` — JSONL hold log with retention-split prune.
-- `src/glob.ts` — anchored globs (`*` within a segment, `**` across).
+- `src/glob.ts` — anchored `*`-only globs (`*` matches within a segment).
 
 ## Conventions
 

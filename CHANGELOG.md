@@ -20,4 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   allow. Warn rules surface matched patterns without changing the verdict.
 - Hold log (`HoldLog`): JSONL at `paths.state/holds.jsonl` with `append`,
   `recent(n)`, and retention split `prune({calls, holds})`.
-- Anchored glob matcher (`globToRegExp`): `*` / `?` / `**` only.
+- Anchored glob matcher (`globToRegExp`): `*` only, anchored, matching
+  within a segment (`?` and `**` are literal).
+- Operator guard: bash commands containing `< & | ; \` $(` skip the
+  read-only fast path and land bash-unknown — a fail-closed widening.

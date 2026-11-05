@@ -28,7 +28,8 @@ releases.
 - `src/log.ts` — `HoldLog`: JSONL at `paths.state/holds.jsonl` with
   `append`, `recent(n)`, and `prune({calls, holds})` (hold/block/escalate
   records keep the `holds` window; everything else the `calls` window).
-- `src/glob.ts` — anchored `*`/`?`/`**` globs for rule patterns.
+- `src/glob.ts` — anchored `*`-only globs for rule patterns (`*`
+  matches any run within a segment; `?` and `**` are literal).
 
 ## Settings shape
 
