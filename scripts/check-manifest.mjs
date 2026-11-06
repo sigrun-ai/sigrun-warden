@@ -70,9 +70,9 @@ const HOST_MODULE_PINS = {
 	"@earendil-works/pi-durable": "1.4.0",
 	"@earendil-works/pi-ai": "1.4.0",
 	"@earendil-works/chord": "1.4.0",
-	// The current core worktree's shared version; the warden takes no
-	// runtime value imports from it (types only), pinned to 0.8.0.
-	"@sigrun/shared": "0.8.0 || 0.9.0",
+	// The core lines the warden runs against; it takes no runtime value
+	// imports from shared (types only), so each core line is accepted.
+	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1",
 };
 const peers = manifest.peerDependencies ?? {};
 const devDeps = manifest.devDependencies ?? {};

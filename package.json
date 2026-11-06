@@ -1,6 +1,6 @@
 {
 	"name": "@sigrun/warden",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Guardrail extension for sigrun: action classification, holds, and judge-backed confirmations (pi-warden port)",
 	"type": "module",
 	"engines": {
@@ -28,7 +28,7 @@
 		"@earendil-works/chord": "1.4.0",
 		"@earendil-works/pi-ai": "1.4.0",
 		"@earendil-works/pi-durable": "1.4.0",
-		"@sigrun/shared": "0.8.0 || 0.9.0"
+		"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1"
 	},
 	"dependencies": {
 		"pi-warden": "^2.6.1",
