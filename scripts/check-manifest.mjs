@@ -72,7 +72,7 @@ const HOST_MODULE_PINS = {
 	"@earendil-works/chord": "1.4.0",
 	// The current core worktree's shared version; the warden takes no
 	// runtime value imports from it (types only), pinned to 0.8.0.
-	"@sigrun/shared": "0.8.0",
+	"@sigrun/shared": "0.8.0 || 0.9.0",
 };
 const peers = manifest.peerDependencies ?? {};
 const devDeps = manifest.devDependencies ?? {};
@@ -88,10 +88,11 @@ for (const [module, spec] of Object.entries(peers)) {
 	);
 	if (module === "@sigrun/shared") {
 		// The shared workspace keeps its file: dev shape (ext-gateway's
-		// exception, carried over verbatim).
+		// exception): the core sibling checkout, per the family's
+		// needs-core layout (`file:../sigrun/shared`).
 		check(
-			devDeps[module] === "file:../sigrun-warden-core/shared",
-			`package.json: devDependencies["${module}"] must be the dev link "file:../sigrun-warden-core/shared" (got ${JSON.stringify(devDeps[module])})`,
+			devDeps[module] === "file:../sigrun/shared",
+			`package.json: devDependencies["${module}"] must be the dev link "file:../sigrun/shared" (got ${JSON.stringify(devDeps[module])})`,
 		);
 		continue;
 	}

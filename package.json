@@ -28,7 +28,7 @@
 		"@earendil-works/chord": "1.4.0",
 		"@earendil-works/pi-ai": "1.4.0",
 		"@earendil-works/pi-durable": "1.4.0",
-		"@sigrun/shared": "0.8.0"
+		"@sigrun/shared": "0.8.0 || 0.9.0"
 	},
 	"dependencies": {
 		"pi-warden": "^2.6.1",
@@ -38,8 +38,8 @@
 		"@earendil-works/chord": "1.4.0",
 		"@earendil-works/pi-ai": "1.4.0",
 		"@earendil-works/pi-durable": "1.4.0",
-		"@sigrun/shared": "file:../sigrun-warden-core/shared",
-		"@sigrun/sigrun": "file:../sigrun-warden-core",
+		"@sigrun/shared": "file:../sigrun/shared",
+		"@sigrun/sigrun": "file:../sigrun",
 		"@types/node": "^26.6.4",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
