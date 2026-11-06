@@ -25,9 +25,9 @@
 		"prepare": "npm run build"
 	},
 	"peerDependencies": {
-		"@earendil-works/chord": "1.4.0",
-		"@earendil-works/pi-ai": "1.4.0",
-		"@earendil-works/pi-durable": "1.4.0",
+		"@earendil-works/chord": "~1.5.0",
+		"@earendil-works/pi-ai": "~1.5.0",
+		"@earendil-works/pi-durable": "~1.5.0",
 		"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1"
 	},
 	"dependencies": {
@@ -35,9 +35,9 @@
 		"pi-typesafe": "^0.14.0"
 	},
 	"devDependencies": {
-		"@earendil-works/chord": "1.4.0",
-		"@earendil-works/pi-ai": "1.4.0",
-		"@earendil-works/pi-durable": "1.4.0",
+		"@earendil-works/chord": "1.5.0",
+		"@earendil-works/pi-ai": "1.5.0",
+		"@earendil-works/pi-durable": "1.5.0",
 		"@sigrun/shared": "file:../sigrun/shared",
 		"@sigrun/sigrun": "file:../sigrun",
 		"@types/node": "^26.6.4",
