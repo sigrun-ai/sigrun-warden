@@ -273,6 +273,81 @@ describe("annotationFromHookResult", () => {
 			readOnly: true,
 		});
 	});
+
+	// The REAL wire shape (ext-mcp 0.2.3's mcp.tool-annotations output
+	// schema): the hints are NESTED under `annotations`, spelled
+	// readOnlyHint/destructiveHint. The flat readOnly/destructive shape
+	// above is the legacy/spec shape; both are accepted (defensive), but
+	// the nested shape is what production serves.
+	it("maps the nested annotations shape the hook actually returns (readOnlyHint)", () => {
+		expect(
+			annotationFromHookResult("mcp-gateway/transmission_list_torrents", {
+				status: "ok",
+				value: {
+					server: "mcp-gateway",
+					mcpName: "transmission_list_torrents",
+					annotations: { readOnlyHint: true },
+				},
+			}),
+		).toEqual({
+			status: "found",
+			server: "mcp-gateway",
+			mcpName: "transmission_list_torrents",
+			readOnly: true,
+		});
+	});
+
+	it("maps nested destructiveHint: false to non-destructive", () => {
+		expect(
+			annotationFromHookResult("mcp-gateway/arr_get_queue", {
+				status: "ok",
+				value: {
+					server: "mcp-gateway",
+					mcpName: "arr_get_queue",
+					annotations: { destructiveHint: false },
+				},
+			}),
+		).toEqual({
+			status: "found",
+			server: "mcp-gateway",
+			mcpName: "arr_get_queue",
+			destructive: false,
+		});
+	});
+
+	it("maps nested destructiveHint: true to destructive", () => {
+		expect(
+			annotationFromHookResult("mcp-gateway/transmission_remove_torrents", {
+				status: "ok",
+					value: {
+						server: "mcp-gateway",
+						mcpName: "transmission_remove_torrents",
+						annotations: { destructiveHint: true },
+					},
+				}),
+		).toEqual({
+			status: "found",
+			server: "mcp-gateway",
+			mcpName: "transmission_remove_torrents",
+				destructive: true,
+		});
+	});
+
+	it("nested hints win over absent flat keys; an empty annotations object falls through to found-without-flags", () => {
+		expect(
+			annotationFromHookResult("mcp-gateway/x", {
+				status: "ok",
+				value: { server: "mcp-gateway", mcpName: "x", annotations: {} },
+			}),
+		).toEqual({
+			status: "found",
+			server: "mcp-gateway",
+			mcpName: "x",
+			// no readOnly/destructive flags — classify treats flag-less
+			// "found" as destructive (fail-closed) but the lookup itself
+			// resolves.
+		});
+	});
 });
 
 describe("pi-warden smoke test", () => {

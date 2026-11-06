@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-06
+
+### Fixed
+
+- Annotation mapping read the warden spec's flat `readOnly` /
+  `destructive` keys — a shape no provider ever served. The published
+  `mcp.tool-annotations` hook (ext-mcp 0.2.3) returns the hints NESTED
+  under `annotations`, spelled `readOnlyHint` / `destructiveHint`, so
+  every annotated MCP tool — including `readOnlyHint: true` ones —
+  classified as destructive (fail-closed, but wrong: read-only calls
+  were held/steered). The mapping now reads the nested wire shape
+  (nested wins; the flat keys stay accepted defensively). Found live
+  during the 2026-11-05 rollout: `transmission_list_torrents` was
+  steered on a clear list request.
+
 ## [0.1.0] - 2026-11-05
 
 ### Added

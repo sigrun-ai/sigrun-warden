@@ -72,14 +72,32 @@ export function annotationFromHookResult(
 	const record = value as Record<string, unknown>;
 	if (record.unknown === true) return { status: "unknown" };
 	const { server, mcpName } = splitMcpName(tool);
+	// The hook's published output schema (ext-mcp 0.2.3's
+	// `mcp.tool-annotations`) nests the hints under `annotations`, spelled
+	// `readOnlyHint` / `destructiveHint`. The flat `readOnly` / `destructive`
+	// keys were the warden spec's shorthand and no provider ever served
+	// them; they stay accepted defensively, but the nested shape is the
+	// wire truth and wins when both appear.
+	const hints =
+		typeof record.annotations === "object" && record.annotations !== null
+			? (record.annotations as Record<string, unknown>)
+			: {};
+	const readOnlyHint = hints.readOnlyHint;
+	const destructiveHint = hints.destructiveHint;
 	return {
 		status: "found",
 		server,
 		mcpName,
-		...(typeof record.readOnly === "boolean" ? { readOnly: record.readOnly } : {}),
-		...(typeof record.destructive === "boolean"
-			? { destructive: record.destructive }
-			: {}),
+		...(typeof readOnlyHint === "boolean"
+			? { readOnly: readOnlyHint }
+			: typeof record.readOnly === "boolean"
+				? { readOnly: record.readOnly }
+				: {}),
+		...(typeof destructiveHint === "boolean"
+			? { destructive: destructiveHint }
+			: typeof record.destructive === "boolean"
+				? { destructive: record.destructive }
+				: {}),
 	};
 }
 
