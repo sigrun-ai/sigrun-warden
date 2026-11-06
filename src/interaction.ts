@@ -9,6 +9,7 @@ import type { Context } from "@earendil-works/chord";
 import type { JsonObject } from "@earendil-works/pi-durable";
 import type { ToolHookCall } from "@earendil-works/pi-durable";
 import { redact } from "pi-warden";
+import { argumentsMarkdown } from "./argsmd.js";
 import {
 	choice,
 	form,
@@ -37,7 +38,6 @@ export function confirmBody(
 	call: Pick<ToolHookCall, "name" | "arguments">,
 	reasons: readonly string[],
 ): Tree {
-	const redactedArgs = redact(JSON.stringify(call.arguments));
 	const reasonLines = reasons.map((reason) => `- ${reason}`).join("\n");
 	return tree(
 		form({
@@ -50,7 +50,7 @@ export function confirmBody(
 					title: "Confirm",
 					children: [
 						markdown({
-							text: `The warden held \`${call.name}\` with arguments:\n\n\`\`\`json\n${redactedArgs}\n\`\`\`\n\n${reasonLines}`,
+							text: `The warden held \`${call.name}\`.\n\n${argumentsMarkdown(call)}\n\n${reasonLines}`,
 						}),
 					],
 				}),

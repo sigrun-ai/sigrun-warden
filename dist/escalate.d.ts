@@ -12,6 +12,8 @@ export interface RaiseResult {
     readonly status: string;
     readonly id?: string;
     readonly created?: boolean;
+    /** Why a present provider produced no item (rejected / failed). */
+    readonly error?: string;
 }
 export interface TakeResult {
     readonly status: "none" | string;
@@ -29,10 +31,16 @@ export declare function resetNoProviderWarning(): void;
  * Raise (or dedup) the hold as an escalation item. With no escalation
  * provider the hold still surfaces: a notice to the job's owner keyed
  * by the grant key (skipped when the job has no owner), plus one
- * console.warn per process.
+ * console.warn per process. A provider that rejects or fails yields no
+ * id and an `error` naming why.
  */
 export declare function raiseEscalation(host: SigrunHost, call: Pick<ToolHookCall, "name" | "arguments">, key: string, jobId: string, owner: string | undefined, reasons: readonly string[], conversationId: ConversationId): Promise<RaiseResult>;
-/** Claim an answered item for the calling conversation (or report none). */
+/**
+ * Claim an answered item for the calling conversation (or report none).
+ * A missing provider is `none` (no inbox, no grant, keep going); a
+ * provider error is `error` — never `none`, so the caller fails closed
+ * (raise + block) instead of reaching the clearance path.
+ */
 export declare function takeGrant(host: SigrunHost, key: string, jobId: string, conversationId: ConversationId): Promise<TakeResult>;
-/** Resolve a claimed item after carrying out its answer. */
+/** Resolve a claimed item after carrying out its answer (throws on a provider error). */
 export declare function resolveGrant(host: SigrunHost, id: string, outcome: "done" | "failed", note: string, conversationId: ConversationId): Promise<ResolveResult>;

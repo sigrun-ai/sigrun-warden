@@ -6,6 +6,7 @@
  */
 import { awaitWithContext } from "@earendil-works/chord/context";
 import { redact } from "pi-warden";
+import { argumentsMarkdown } from "./argsmd.js";
 import { choice, form, longtext, markdown, section, tree, } from "@sigrun/sigrun/blocks";
 /** The interaction kind the warden declares (loader-validated). */
 export const WARDEN_CONFIRM_KIND = "warden.confirm";
@@ -18,7 +19,6 @@ const POLL_MS = 500;
  * `gatingConfirmBody` example in core's docs/extending.md.
  */
 export function confirmBody(call, reasons) {
-    const redactedArgs = redact(JSON.stringify(call.arguments));
     const reasonLines = reasons.map((reason) => `- ${reason}`).join("\n");
     return tree(form({
         id: "warden-confirm",
@@ -30,7 +30,7 @@ export function confirmBody(call, reasons) {
                 title: "Confirm",
                 children: [
                     markdown({
-                        text: `The warden held \`${call.name}\` with arguments:\n\n\`\`\`json\n${redactedArgs}\n\`\`\`\n\n${reasonLines}`,
+                        text: `The warden held \`${call.name}\`.\n\n${argumentsMarkdown(call)}\n\n${reasonLines}`,
                     }),
                 ],
             }),

@@ -368,3 +368,43 @@ describe("job presence: no escalation provider", () => {
 		expect(result?.block).not.toContain("Not cleared for this job");
 	});
 });
+
+describe("job presence: the registry envelope's error shapes", () => {
+	let env: Env;
+	afterEach(async () => {
+		await env.fake.cleanup();
+	});
+
+	/** Swap one hook's answer for a `failed` envelope (a provider throw). */
+	function failHook(target: string): void {
+		const original = env.fake.host.publishedHooks.call;
+		env.fake.host.publishedHooks.call = (async (
+			name: string,
+			payload: unknown,
+			opts: { user?: string; conversationId?: never; abortSignal?: AbortSignal } | undefined,
+		) => {
+			if (name === target) {
+				return { status: "failed", provider: "sigrun-escalations", reason: "threw", error: "disk full" };
+			}
+			return original(name, payload, opts);
+		}) as typeof original;
+	}
+
+	it("a failing raise says the escalation could not be raised — never 'no inbox'", async () => {
+		env = await jobEnv();
+		failHook("escalation.raise");
+		const result = await route(env, callWith("c1"));
+		expect(result?.block).toContain("the escalation could not be raised (failed (threw): disk full)");
+		expect(result?.block).not.toContain("no escalation inbox is installed");
+	});
+
+	it("a failing take fails closed: the call blocks and nothing runs", async () => {
+		env = await jobEnv();
+		await route(env, callWith("c1"));
+		env.escalations.answer(KEY, "approve");
+		failHook("escalation.take");
+		const result = await route(env, callWith("c2"));
+		expect(result?.block).toContain("Not cleared for this job");
+		expect(env.escalations.items[0]!.status).toBe("answered"); // not claimed
+	});
+});

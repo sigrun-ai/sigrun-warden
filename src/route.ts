@@ -494,14 +494,21 @@ async function jobRaise(
 	});
 	const id = raised.id;
 	if (id === undefined) {
-		// No escalation inbox answered: name the reasons, never "unknown".
+		// No item: name why (no inbox vs a failing inbox) and the reasons.
 		return {
-			block: `Not cleared for this job without a person's approval; no escalation inbox is installed. Reasons: ${reasons.join("; ")}`,
+			block: `Not cleared for this job without a person's approval; ${noItemReason(raised)}. Reasons: ${reasons.join("; ")}`,
 		};
 	}
 	return {
 		block: `Not cleared for this job without a person's approval; raised escalation ${id}.`,
 	};
+}
+
+/** Why a raise produced no inbox item, for the block text. */
+function noItemReason(raised: { status: string; error?: string }): string {
+	return raised.status === "absent"
+		? "no escalation inbox is installed"
+		: `the escalation could not be raised (${raised.error ?? raised.status})`;
 }
 
 const MAX_TARGETS = 16;
@@ -537,7 +544,7 @@ async function clearedJobRoute(
 		});
 		if (raised.id === undefined) {
 			return {
-				block: `${block}; no escalation inbox is installed. Reasons: ${escalateReasons.join("; ")}`,
+				block: `${block}; ${noItemReason(raised)}. Reasons: ${escalateReasons.join("; ")}`,
 			};
 		}
 		return { block: `${block}; raised escalation ${raised.id}.` };

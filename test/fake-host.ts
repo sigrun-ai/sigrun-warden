@@ -353,11 +353,27 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 			call: async (name: string, payload: unknown, opts: unknown) => {
 				hookCalls.push({ name, payload, opts });
 				if (name.startsWith("escalation.")) {
-					return callEscalation(
-						name,
-						payload as Record<string, unknown>,
-						opts as { conversationId?: number } | undefined,
-					);
+					// Mirror core's PublishedHookResult envelope: a provider's
+					// return value rides in `value` under status "ok"; only a
+					// missing provider answers the bare `absent`; a provider
+					// throw is `failed` (core's registry, src/harness/published-hooks.ts).
+					let value: unknown;
+					try {
+						value = callEscalation(
+							name,
+							payload as Record<string, unknown>,
+							opts as { conversationId?: number } | undefined,
+						);
+					} catch (error) {
+						return {
+							status: "failed",
+							provider: "sigrun-escalations",
+							reason: "threw",
+							error: error instanceof Error ? error.message : String(error),
+						};
+					}
+					if ((value as { status?: string }).status === "absent") return value;
+					return { status: "ok", provider: "sigrun-escalations", value };
 				}
 				return hookResults.length > 1
 					? hookResults.shift()
