@@ -9,7 +9,7 @@ import { skillsInRun } from "./skills.js";
 import { callFingerprint, grantKey } from "./state.js";
 import { targetsOf } from "./targets.js";
 import { Cooldown } from "./judge.js";
-import { evaluateLive } from "./live.js";
+import { evaluateLive, judgeUnknown } from "./live.js";
 /** Collision-impossible live-hold nonce (6 random bytes as hex). */
 const newNonce = () => randomBytes(6).toString("hex");
 function callLog(input, base) {
@@ -49,7 +49,9 @@ export async function routeOffline(input) {
         });
         return { block: classification.reason };
     }
-    if (classification.kind !== "destructive" && classification.kind !== "bash-unknown") {
+    if (classification.kind !== "destructive" &&
+        classification.kind !== "bash-unknown" &&
+        classification.kind !== "mcp-unknown") {
         // Allowed calls still record their warn rules (classification.warns).
         if (classification.warns !== undefined && classification.warns.length > 0) {
             await input.log.append({
@@ -62,7 +64,9 @@ export async function routeOffline(input) {
     }
     const reasons = classification.kind === "bash-unknown"
         ? [`unrecognized shell command: ${classification.command}`]
-        : classification.reasons;
+        : classification.kind === "mcp-unknown"
+            ? [classification.reason]
+            : classification.reasons;
     // Internal (curator) presence: block outright, no escalation.
     if (presence.kind === "internal") {
         const reason = reasons.join("; ");
@@ -75,12 +79,15 @@ export async function routeOffline(input) {
         return { block: `This call can't run in a curator review: ${reason}` };
     }
     // Live presence: the Task 12 flow (clear ask, steer, approval on
-    // reply, bash-unknown). Destructive calls go through it only with a
-    // judge; bash-unknown always does (judge-absent is pi-warden's
+    // reply, bash-unknown / mcp-unknown). Destructive calls go through it
+    // only with a judge; the unknown kinds always do (judge-absent is
+    // pi-warden's
     // offline allow). An "ask the person" outcome — or a judge-free
     // destructive call — takes the Task 11 interaction hold.
     if (presence.kind === "live" &&
-        (classification.kind === "bash-unknown" || input.judge !== undefined)) {
+        (classification.kind === "bash-unknown" ||
+            classification.kind === "mcp-unknown" ||
+            input.judge !== undefined)) {
         const outcome = await evaluateLive({
             ...input,
             judge: input.judge,
@@ -137,6 +144,19 @@ export async function routeOffline(input) {
         });
         const outcome = await holdForPerson(input.host, call, input.conversationId, `${fp}-${decision.nonce}`, reasons, input.context);
         return finishAnswer(input, fp, decision.nonce, logBase, outcome);
+    }
+    // Job presence: an unannotated MCP call is judged for irreversibility
+    // first (no judge or a failed judgment fails closed into the
+    // destructive path); a reversible one runs with no escalation.
+    if (classification.kind === "mcp-unknown") {
+        const resolved = await judgeUnknown({
+            ...input,
+            judge: input.cooldown?.active === true ? undefined : input.judge,
+            cooldown: input.cooldown ?? new Cooldown(),
+        });
+        if (resolved.kind !== "destructive")
+            return undefined;
+        return jobRoute({ ...input, classification: resolved }, fp, key, resolved.reasons, logBase);
     }
     // Job presence: block + escalate with one-shot grants.
     return jobRoute(input, fp, key, reasons, logBase);

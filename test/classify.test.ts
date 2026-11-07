@@ -147,32 +147,43 @@ describe("classify: MCP tools", () => {
 		}
 	});
 
-	it("unknown annotation → destructive", async () => {
+	// An unannotated MCP tool is not presumed destructive: it is
+	// mcp-unknown, which the router sends to the irreversibility judgment
+	// (like bash-unknown) before any hold. Presuming destructive held every
+	// web search of an unannotated search server.
+	it("unknown annotation → mcp-unknown (judged, not presumed destructive)", async () => {
 		const result = await classify(
-			{ name: "acme-media/torrents_remove", arguments: { id: "1" } },
+			{ name: "acme-search/search_json", arguments: { query: "dryer fix" } },
 			annotationDeps({ status: "unknown" }),
 		);
-		expect(result.kind).toBe("destructive");
-		if (result.kind === "destructive") {
-			expect(result.mcp).toEqual({
-				server: "acme-media",
-				mcpName: "torrents_remove",
-			});
-		}
+		expect(result).toMatchObject({
+			kind: "mcp-unknown",
+			mcp: { server: "acme-search", mcpName: "search_json" },
+		});
 	});
 
-	it("no provider → acme-media/torrents_remove destructive (escalate class)", async () => {
+	it("no provider → mcp-unknown with the mcp pair", async () => {
 		const result = await classify(
 			{ name: "acme-media/torrents_remove", arguments: { id: "1" } },
 			annotationDeps({ status: "no-provider" }),
 		);
-		expect(result.kind).toBe("destructive");
-		if (result.kind === "destructive") {
-			expect(result.mcp).toEqual({
+		expect(result).toMatchObject({
+			kind: "mcp-unknown",
+			mcp: { server: "acme-media", mcpName: "torrents_remove" },
+		});
+	});
+
+	it("annotated destructive stays destructive (no judgment softens it)", async () => {
+		const result = await classify(
+			{ name: "acme-media/torrents_remove", arguments: { id: "1" } },
+			annotationDeps({
+				status: "found",
 				server: "acme-media",
 				mcpName: "torrents_remove",
-			});
-		}
+				destructive: true,
+			}),
+		);
+		expect(result.kind).toBe("destructive");
 	});
 
 	it("a name without \"/\" with no provider is allow (no lookup attempted)", async () => {
@@ -215,6 +226,22 @@ describe("classify: rules", () => {
 			},
 		);
 		expect(denyCore.kind).toBe("deny");
+	});
+
+	it("a hold rule upgrades an unannotated MCP tool to destructive", async () => {
+		const result = await classify(
+			{ name: "acme-media/purge", arguments: { id: "1" } },
+			{
+				annotations: async (): Promise<AnnotationLookup> => ({ status: "unknown" }),
+				settings: settings({
+					rules: [{ match: "tool", pattern: "acme-media/*", level: "hold" }],
+				}),
+			},
+		);
+		expect(result).toMatchObject({
+			kind: "destructive",
+			mcp: { server: "acme-media", mcpName: "purge" },
+		});
 	});
 
 	it("a hold rule on a path makes write destructive", async () => {

@@ -18,6 +18,19 @@ export type Classification = {
     kind: "bash-unknown";
     command: string;
     warns?: readonly string[];
+} | {
+    /**
+     * An MCP tool whose server declared no trustable annotation (or no
+     * annotation provider is installed). Not presumed destructive: the
+     * router judges irreversibility first, like bash-unknown.
+     */
+    kind: "mcp-unknown";
+    reason: string;
+    mcp: {
+        server: string;
+        mcpName: string;
+    };
+    warns?: readonly string[];
 };
 /**
  * The annotation answer for one MCP tool name (`server/mcpName`):
@@ -63,8 +76,10 @@ export declare function annotationFromHookResult(tool: string, result: {
  * 3. bash: read-only → allow; `matchPatterns` on the RAW command →
  *    destructive; else bash-unknown;
  * 4. a name containing `/` → the annotations lookup (readOnly or
- *    `destructive === false` → allow; destructive / unknown /
- *    no-provider → destructive with the mcp pair);
+ *    `destructive === false` → allow; annotated destructive →
+ *    destructive with the mcp pair; unknown / no-provider → a matching
+ *    hold rule makes it destructive, else mcp-unknown, which the router
+ *    judges for irreversibility before any hold);
  * 5. hold rules → destructive;
  * 6. otherwise allow.
  * `warn` rules never change the verdict; the matched patterns come back

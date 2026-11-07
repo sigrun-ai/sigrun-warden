@@ -74,8 +74,10 @@ function stringArguments(args) {
  * 3. bash: read-only → allow; `matchPatterns` on the RAW command →
  *    destructive; else bash-unknown;
  * 4. a name containing `/` → the annotations lookup (readOnly or
- *    `destructive === false` → allow; destructive / unknown /
- *    no-provider → destructive with the mcp pair);
+ *    `destructive === false` → allow; annotated destructive →
+ *    destructive with the mcp pair; unknown / no-provider → a matching
+ *    hold rule makes it destructive, else mcp-unknown, which the router
+ *    judges for irreversibility before any hold);
  * 5. hold rules → destructive;
  * 6. otherwise allow.
  * `warn` rules never change the verdict; the matched patterns come back
@@ -140,6 +142,17 @@ export async function classify(call, deps) {
         }
         return withWarns({ kind: "bash-unknown", command: command ?? "" });
     }
+    const holdMatch = () => {
+        for (const rule of rules) {
+            if (rule.level !== "hold")
+                continue;
+            const target = ruleTargets(rule.match).find((value) => matchGlob(value, [rule.pattern]) !== undefined);
+            if (target !== undefined) {
+                return `hold rule ${JSON.stringify(rule.pattern)} matched ${JSON.stringify(target)}`;
+            }
+        }
+        return undefined;
+    };
     // 4. MCP tools (`server/mcpName`) via the annotations lookup.
     if (name.includes("/")) {
         const annotation = await deps.annotations(name);
@@ -162,34 +175,27 @@ export async function classify(call, deps) {
                 mcp: { server: annotation.server, mcpName: annotation.mcpName },
             });
         }
-        if (annotation.status === "unknown") {
+        // No trustable annotation: an operator hold rule decides first;
+        // otherwise the call is judged, never presumed destructive — most
+        // MCP servers ship no annotations, and holding every call of them
+        // trains the person to approve without reading.
+        const reason = annotation.status === "unknown"
+            ? `MCP tool ${name} has no trustable annotation`
+            : `no MCP annotation provider is available for ${name}`;
+        const held = holdMatch();
+        if (held !== undefined) {
             return withWarns({
                 kind: "destructive",
-                reasons: [`MCP tool ${name} has no trustable annotation`],
+                reasons: [reason, held],
                 mcp: splitMcpName(name),
             });
         }
-        return withWarns({
-            kind: "destructive",
-            reasons: [
-                `no MCP annotation provider is available; treating ${name} as destructive`,
-            ],
-            mcp: splitMcpName(name),
-        });
+        return withWarns({ kind: "mcp-unknown", reason, mcp: splitMcpName(name) });
     }
     // 5. Hold rules.
-    for (const rule of rules) {
-        if (rule.level !== "hold")
-            continue;
-        const target = ruleTargets(rule.match).find((value) => matchGlob(value, [rule.pattern]) !== undefined);
-        if (target !== undefined) {
-            return withWarns({
-                kind: "destructive",
-                reasons: [
-                    `hold rule ${JSON.stringify(rule.pattern)} matched ${JSON.stringify(target)}`,
-                ],
-            });
-        }
+    const held = holdMatch();
+    if (held !== undefined) {
+        return withWarns({ kind: "destructive", reasons: [held] });
     }
     // 6. Otherwise allow.
     return withWarns({ kind: "allow", reason: `no rule or annotation covers ${name}` });

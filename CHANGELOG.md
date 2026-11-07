@@ -5,9 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.3] - 2026-11-07
-
 ## [Unreleased]
+
+## [0.1.4] - 2026-11-07
+
+### Fixed
+
+- An MCP tool whose server declares no annotations (or with no
+  annotation provider installed) is no longer presumed destructive. It
+  classifies as `mcp-unknown` and gets the same irreversibility
+  judgment as an unrecognized shell command: below the hold band it
+  runs with no question; only an irreversible verdict enters the
+  destructive flow (clear ask, steer, hold). Previously every call of an
+  unannotated server — e.g. each web search — was held and had to be
+  approved one query at a time. In a job, no decision model or a failed
+  judgment still fails closed into an escalation; a curator review still
+  blocks outright.
+
+### Changed
+
+- `hold` rules now also apply to MCP tools without trustable
+  annotations, so an operator can mark an unannotated server dangerous
+  (e.g. `{ "match": "tool", "pattern": "acme-media/*", "level": "hold" }`).
+- `judgeBashUnknown` is now `judgeUnknown` (the old name stays exported).
+
+## [0.1.3] - 2026-11-07
 
 ### Changed
 

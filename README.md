@@ -18,7 +18,12 @@ decides what happens to every model-issued tool call, by **presence**:
 verdict; they log a `warn` record. An unrecognized shell command
 (`bash-unknown`) is judged for irreversibility: over the
 `thresholds.irreversible` score it is treated as destructive; in a job
-it fails closed (block + escalate). A judge failure or a disabled judge
+it fails closed (block + escalate). An MCP tool whose server declares no
+annotations (`mcp-unknown`) gets the same irreversibility judgment in
+live and job presences — most MCP servers ship no annotations, and
+holding every call of them trains the person to approve without
+reading. A `hold` rule matching an unannotated MCP tool makes it
+destructive outright. A judge failure or a disabled judge
 never silently allows: live falls to the interaction hold, jobs block +
 escalate, cleared calls block + escalate.
 
@@ -33,7 +38,8 @@ unreachable, or `judge.enabled: false`):
   `matchPatterns` run regardless (raw command, never pre-stripped);
 - **user rules hold** — `deny` still blocks, `warn` still logs;
 - **live** holds a destructive call on a `warden.confirm` question
-  (bash-unknown is allowed offline, pi-warden's own behaviour);
+  (bash-unknown and mcp-unknown are allowed offline, pi-warden's own
+  behaviour);
 - **jobs** block + escalate, including cleared calls (the card check
   cannot run);
 - **nothing autonomous runs unjudged** — the card check, the clear-ask

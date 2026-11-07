@@ -111,30 +111,42 @@ function findReply(
 }
 
 /**
- * The bash-unknown judgment (warden spec §3.2): the ask gate decides
- * whether any answer could change the outcome; the irreversible
- * question classifies the rest. Returns the resolved classification —
- * "allow" (with the log record written for the 0.5–0.9 band) or
- * "destructive" (the flow continues as destructive).
+ * The unknown-call judgment (warden spec §3.2), for bash-unknown and
+ * mcp-unknown alike: for bash the ask gate decides whether any answer
+ * could change the outcome; the irreversible question classifies the
+ * rest. Returns the resolved classification — "allow" (with the log
+ * record written for the 0.5–0.9 band) or "destructive" (the flow
+ * continues as destructive; an MCP call keeps its mcp pair).
  */
-export async function judgeBashUnknown(input: LiveInput): Promise<Classification> {
+export async function judgeUnknown(input: LiveInput): Promise<Classification> {
 	const { classification } = input;
-	if (classification.kind !== "bash-unknown") return classification;
-	const command = classification.command;
-	const gate = actionAskGate(
-		input.call.name,
-		input.call.arguments,
-		stripDataText(command).text,
-		"/",
-	);
-	if (!gate.ask) return { kind: "allow", reason: gate.why };
+	if (classification.kind !== "bash-unknown" && classification.kind !== "mcp-unknown") {
+		return classification;
+	}
+	let subject: string;
+	let action: { [key: string]: Json };
+	let mcp: { server: string; mcpName: string } | undefined;
+	if (classification.kind === "bash-unknown") {
+		const command = classification.command;
+		const gate = actionAskGate(
+			input.call.name,
+			input.call.arguments,
+			stripDataText(command).text,
+			"/",
+		);
+		if (!gate.ask) return { kind: "allow", reason: gate.why };
+		subject = `unrecognized shell command: ${command}`;
+		action = { tool: input.call.name, command: stripDataText(command).text };
+	} else {
+		subject = classification.reason;
+		action = { tool: input.call.name, arguments: redactDeep(input.call.arguments) };
+		mcp = classification.mcp;
+	}
 
 	const destructive: Classification = {
 		kind: "destructive",
-		reasons: [
-			`unrecognized shell command: ${command}`,
-			"the decision model judged it irreversible",
-		],
+		reasons: [subject, "the decision model judged it irreversible"],
+		...(mcp !== undefined ? { mcp } : {}),
 	};
 	// No judge: live allows (pi-warden's offline behaviour — the floor
 	// caught the patterns); a job fails closed into the destructive path.
@@ -149,10 +161,7 @@ export async function judgeBashUnknown(input: LiveInput): Promise<Classification
 		const result = await input.judge.evaluate({
 			state: {
 				task: task === "" ? "(no user request recorded in this session)" : redact(task),
-				action: {
-					tool: input.call.name,
-					command: stripDataText(command).text,
-				},
+				action,
 				context: [],
 				floor_hits: [],
 			},
@@ -169,10 +178,8 @@ export async function judgeBashUnknown(input: LiveInput): Promise<Classification
 		if (input.presence.kind === "job") return destructive;
 		return {
 			kind: "destructive",
-			reasons: [
-				`unrecognized shell command: ${command}`,
-				"the irreversibility judgment failed",
-			],
+			reasons: [subject, "the irreversibility judgment failed"],
+			...(mcp !== undefined ? { mcp } : {}),
 		};
 	}
 	if (score >= input.settings.thresholds.irreversible) return destructive;
@@ -192,15 +199,34 @@ export async function judgeBashUnknown(input: LiveInput): Promise<Classification
 	return { kind: "allow", reason: "the irreversibility judgment is below the hold band" };
 }
 
+/** The pre-rename name, kept for the package's public export. */
+export const judgeBashUnknown = judgeUnknown;
+
+/** A JSON value (structurally assignable to the judge's ContentValue). */
+type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
+/** Every string inside a tool's arguments through pi-warden's redact. */
+function redactDeep(value: unknown): Json {
+	if (typeof value === "string") return redact(value);
+	if (typeof value === "number" || typeof value === "boolean") return value;
+	if (Array.isArray(value)) return value.map(redactDeep);
+	if (value !== null && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, redactDeep(item)]),
+		);
+	}
+	return null;
+}
+
 /**
  * The live flow for a destructive call (spec §3.2 steps 1–5). The
- * caller guarantees a live presence; bash-unknown calls pass through
- * `judgeBashUnknown` first.
+ * caller guarantees a live presence; bash-unknown and mcp-unknown calls
+ * pass through `judgeUnknown` first.
  */
 export async function evaluateLive(input: LiveInput): Promise<LiveOutcome> {
 	let classification = input.classification;
-	if (classification.kind === "bash-unknown") {
-		const resolved = await judgeBashUnknown(input);
+	if (classification.kind === "bash-unknown" || classification.kind === "mcp-unknown") {
+		const resolved = await judgeUnknown(input);
 		if (resolved.kind === "allow") return { action: "run" };
 		classification = resolved;
 	}

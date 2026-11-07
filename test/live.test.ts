@@ -519,3 +519,134 @@ async function runInfoFor(env: LiveEnv, entries: unknown[]): Promise<RunInfo> {
 }
 
 
+
+/**
+ * mcp-unknown: an MCP tool whose server declares no annotations is judged
+ * for irreversibility (like bash-unknown) instead of presumed destructive.
+ * A reversible call (a web search) runs with no hold and no clear-ask
+ * question; only an irreversible verdict enters the destructive flow.
+ */
+describe("mcp-unknown: the irreversible judgment", () => {
+	const SEARCH_CALL = {
+		type: "toolCall",
+		id: "s1",
+		name: "acme-search/search_json",
+		arguments: { query: "dryer stuck on welcome screen", count: 10 },
+	} as ToolHookCall;
+	const MCP_UNKNOWN: Classification = {
+		kind: "mcp-unknown",
+		reason: "MCP tool acme-search/search_json has no trustable annotation",
+		mcp: { server: "acme-search", mcpName: "search_json" },
+	};
+	const IRREVERSIBLE_LOW = {
+		ok: true,
+		model: "acme/model-1",
+		answers: { irreversible: { type: "noul", noul: 0.02 } },
+		usage: { input_tokens: 10, output_tokens: 2 },
+		elapsedMs: 5,
+	};
+
+	let env: LiveEnv | undefined;
+	afterEach(async () => {
+		await env?.fake.cleanup();
+		env = undefined;
+	});
+
+	it("a reversible search runs live with one irreversible question and no hold", async () => {
+		env = await liveEnv({
+			owner: "alice",
+			entries: [userEntry("research why my dryer is stuck on the welcome screen")],
+			decisionResults: [IRREVERSIBLE_LOW],
+		});
+		const blocked = await routeOffline(
+			env.input({ classification: MCP_UNKNOWN, call: SEARCH_CALL }),
+		);
+		expect(blocked).toBeUndefined();
+		expect(env.fake.decisionCalls).toHaveLength(1);
+		const request = env.fake.decisionCalls[0]!.request as {
+			state: { action: { tool: string; arguments: unknown } };
+			questions: Record<string, unknown>;
+		};
+		expect(Object.keys(request.questions)).toEqual(["irreversible"]);
+		expect(request.state.action.tool).toBe("acme-search/search_json");
+		expect(request.state.action.arguments).toEqual(SEARCH_CALL.arguments);
+		const state = await env.store.load(1 as never);
+		expect(state.blocked).toHaveLength(0);
+	});
+
+	it("an irreversible verdict enters the destructive flow (clear ask)", async () => {
+		env = await liveEnv({
+			owner: "alice",
+			entries: [userEntry("research the dryer")],
+			decisionResults: [IRREVERSIBLE_YES, CLEAR_NO],
+		});
+		const outcome = await evaluateLive(
+			env.input({ classification: MCP_UNKNOWN, call: SEARCH_CALL }),
+		);
+		expect(outcome).toMatchObject({ action: "steer" });
+		expect(env.fake.decisionCalls).toHaveLength(2);
+	});
+
+	it("no judge live → runs (pi-warden's offline behaviour)", async () => {
+		env = await liveEnv({ owner: "alice", entries: [userEntry("research the dryer")] });
+		const blocked = await routeOffline(
+			env.input({ classification: MCP_UNKNOWN, call: SEARCH_CALL, judgeOff: true }),
+		);
+		expect(blocked).toBeUndefined();
+	});
+
+	it("in a job: reversible runs, no judge fails closed into an escalation", async () => {
+		const escalations = (await import("./fake-host.js")).createFakeEscalations();
+		for (const [judged, expectRun] of [
+			[true, true],
+			[false, false],
+		] as const) {
+			const jobFake = await createFakeHost({
+				owner: "bob",
+				activeRun: { jobId: "ext:acme:research", owner: "bob" },
+				entries: [],
+				escalations,
+				decisionResults: [IRREVERSIBLE_LOW],
+			});
+			try {
+				const cooldown = new Cooldown();
+				const result = await routeOffline({
+					host: jobFake.host,
+					call: SEARCH_CALL,
+					conversationId: 1 as never,
+					classification: MCP_UNKNOWN,
+					presence: { kind: "job", jobId: "ext:acme:research", owner: "bob" },
+					run: await runInfo(jobFake.host, 1 as never),
+					settings: defaultSettings(),
+					store: new StateStore(`${jobFake.root}/state`),
+					log: new HoldLog(`${jobFake.root}/state/holds.jsonl`, () => new Date()),
+					context: liveContext(),
+					...(judged ? { judge: decisionsJudge(jobFake.host, defaultSettings(), cooldown) } : {}),
+					cooldown,
+				});
+				if (expectRun) {
+					expect(result).toBeUndefined();
+					expect(escalations.items).toHaveLength(0);
+				} else {
+					expect(result?.block).toContain("escalation");
+					expect(escalations.items).toHaveLength(1);
+				}
+			} finally {
+				await jobFake.cleanup();
+			}
+		}
+	});
+
+	it("a curator review still blocks outright", async () => {
+		env = await liveEnv({ owner: "alice", entries: [], decisionResults: [IRREVERSIBLE_LOW] });
+		const blocked = await routeOffline(
+			env.input({
+				classification: MCP_UNKNOWN,
+				call: SEARCH_CALL,
+				presence: { kind: "internal" } as LiveInput["presence"],
+			}),
+		);
+		expect(blocked?.block).toContain("curator");
+		expect(env.fake.decisionCalls).toHaveLength(0);
+	});
+});
