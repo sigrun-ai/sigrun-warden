@@ -16,11 +16,13 @@ decides what happens to every model-issued tool call, by **presence**:
 
 `deny` rules block in every presence. `warn` rules never change the
 verdict; they log a `warn` record. An unrecognized shell command
-(`bash-unknown`) is judged for irreversibility: over the
-`thresholds.irreversible` score it is treated as destructive; in a job
-it fails closed (block + escalate). An MCP tool whose server declares no
-annotations (`mcp-unknown`) gets the same irreversibility judgment in
-live and job presences — most MCP servers ship no annotations, and
+(`bash-unknown`) first meets pi-warden's ask gate (local commands no
+answer could change run), then the irreversibility judgment: over the
+`thresholds.irreversible` score it is treated as destructive (live: the
+clear-ask flow; job: block + escalate), below it runs. This holds in
+live and job presences; with no decision model a job fails closed
+before the gate. An MCP tool whose server declares no annotations
+(`mcp-unknown`) gets the same irreversibility judgment — most MCP servers ship no annotations, and
 holding every call of them trains the person to approve without
 reading. A `hold` rule matching an unannotated MCP tool makes it
 destructive outright. A judge failure or a disabled judge

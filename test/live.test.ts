@@ -650,3 +650,67 @@ describe("mcp-unknown: the irreversible judgment", () => {
 		expect(env.fake.decisionCalls).toHaveLength(0);
 	});
 });
+
+/**
+ * bash-unknown in a job: judged for irreversibility like live (and like
+ * mcp-unknown), instead of escalating every unrecognized command.
+ * pi-warden's ask gate passes local commands it needs no answer for; an
+ * irreversible verdict escalates; with no decision model at all the job
+ * fails closed before the gate (nothing autonomous runs unjudged).
+ */
+describe("bash-unknown in a job: judged before escalating", () => {
+	const LOCAL = "mkdir -p /data/state/acme/run && touch /data/state/acme/run/stamp";
+	const NETWORK = "curl -X POST https://example.invalid/api/refresh";
+	const IRREVERSIBLE_LOW = {
+		ok: true,
+		model: "acme/model-1",
+		answers: { irreversible: { type: "noul", noul: 0.05 } },
+		usage: { input_tokens: 10, output_tokens: 2 },
+		elapsedMs: 5,
+	};
+
+	for (const [label, command, results, judged, expectRun, expectCalls] of [
+		["a gate-passed local command runs with no decision request", LOCAL, [], true, true, 0],
+		["a gate-asked command judged reversible runs, no escalation", NETWORK, [IRREVERSIBLE_LOW], true, true, 1],
+		["a gate-asked command judged irreversible escalates", NETWORK, [IRREVERSIBLE_YES], true, false, 1],
+		["no decision model escalates even a local command (fails closed)", LOCAL, [], false, false, 0],
+	] as const) {
+		it(label, async () => {
+			const escalations = (await import("./fake-host.js")).createFakeEscalations();
+			const jobFake = await createFakeHost({
+				owner: "bob",
+				activeRun: { jobId: "ext:acme:maint", owner: "bob" },
+				entries: [],
+				escalations,
+				decisionResults: [...results],
+			});
+			try {
+				const cooldown = new Cooldown();
+				const result = await routeOffline({
+					host: jobFake.host,
+					call: { type: "toolCall", id: "b1", name: "bash", arguments: { command } } as ToolHookCall,
+					conversationId: 1 as never,
+					classification: { kind: "bash-unknown", command },
+					presence: { kind: "job", jobId: "ext:acme:maint", owner: "bob" },
+					run: await runInfo(jobFake.host, 1 as never),
+					settings: defaultSettings(),
+					store: new StateStore(`${jobFake.root}/state`),
+					log: new HoldLog(`${jobFake.root}/state/holds.jsonl`, () => new Date()),
+					context: liveContext(),
+					...(judged ? { judge: decisionsJudge(jobFake.host, defaultSettings(), cooldown) } : {}),
+					cooldown,
+				});
+				expect(jobFake.decisionCalls).toHaveLength(expectCalls);
+				if (expectRun) {
+					expect(result).toBeUndefined();
+					expect(escalations.items).toHaveLength(0);
+				} else {
+					expect(result?.block).toContain("escalation");
+					expect(escalations.items).toHaveLength(1);
+				}
+			} finally {
+				await jobFake.cleanup();
+			}
+		});
+	}
+});

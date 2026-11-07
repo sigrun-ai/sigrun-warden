@@ -87,28 +87,39 @@ export async function judgeUnknown(input) {
     let action;
     let mcp;
     if (classification.kind === "bash-unknown") {
+        subject = `unrecognized shell command: ${classification.command}`;
+    }
+    else {
+        subject = classification.reason;
+        mcp = classification.mcp;
+    }
+    // A job with no decision model fails closed BEFORE the bash ask gate:
+    // nothing autonomous runs unjudged (README "No decision model").
+    if (input.judge === undefined && input.presence.kind === "job") {
+        return {
+            kind: "destructive",
+            reasons: [subject, "no decision model available"],
+            ...(mcp !== undefined ? { mcp } : {}),
+        };
+    }
+    if (classification.kind === "bash-unknown") {
         const command = classification.command;
         const gate = actionAskGate(input.call.name, input.call.arguments, stripDataText(command).text, "/");
         if (!gate.ask)
             return { kind: "allow", reason: gate.why };
-        subject = `unrecognized shell command: ${command}`;
         action = { tool: input.call.name, command: stripDataText(command).text };
     }
     else {
-        subject = classification.reason;
         action = { tool: input.call.name, arguments: redactDeep(input.call.arguments) };
-        mcp = classification.mcp;
     }
     const destructive = {
         kind: "destructive",
         reasons: [subject, "the decision model judged it irreversible"],
         ...(mcp !== undefined ? { mcp } : {}),
     };
-    // No judge: live allows (pi-warden's offline behaviour — the floor
-    // caught the patterns); a job fails closed into the destructive path.
+    // No judge live: allow (pi-warden's offline behaviour — the floor
+    // caught the patterns). The job case returned above.
     if (input.judge === undefined) {
-        if (input.presence.kind === "job")
-            return destructive;
         return { kind: "allow", reason: "no decision model; judged offline" };
     }
     let score;

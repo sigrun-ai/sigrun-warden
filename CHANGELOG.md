@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-07
+
+### Fixed
+
+- An unrecognized shell command in a job escalated unconditionally — the
+  irreversibility judgment only ever ran live. Jobs now get the same
+  path as live: pi-warden's ask gate passes local commands no answer
+  could change, the decision model judges the rest, and only an
+  irreversible verdict blocks + escalates. With no decision model a job
+  still fails closed (before the gate), and the no-model block reason
+  now says so instead of claiming an irreversible verdict.
+
 ## [0.1.4] - 2026-11-07
 
 ### Fixed

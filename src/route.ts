@@ -214,10 +214,11 @@ export async function routeOffline(input: RouteInput): Promise<{ block?: string 
 		return finishAnswer(input, fp, decision.nonce, logBase, outcome);
 	}
 
-	// Job presence: an unannotated MCP call is judged for irreversibility
-	// first (no judge or a failed judgment fails closed into the
-	// destructive path); a reversible one runs with no escalation.
-	if (classification.kind === "mcp-unknown") {
+	// Job presence: an unrecognized shell command or an unannotated MCP
+	// call is judged for irreversibility first (no judge or a failed
+	// judgment fails closed into the destructive path); a reversible one
+	// runs with no escalation.
+	if (classification.kind === "bash-unknown" || classification.kind === "mcp-unknown") {
 		const resolved = await judgeUnknown({
 			...input,
 			judge: input.cooldown?.active === true ? undefined : input.judge,
