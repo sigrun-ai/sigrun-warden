@@ -20,6 +20,7 @@ import {
 } from "./route.js";
 import { defaultSettings, parseSettings } from "./settings.js";
 import { StateStore } from "./state.js";
+import { toolExecuted } from "./tool-executed.js";
 
 /**
  * The warden factory (arity one for the loader; test deps come second).
@@ -95,6 +96,13 @@ export default function createWarden(
 		api: HookApi,
 		_context: Context,
 	): Promise<ToolExecutionResult | undefined> => {
+		// pi-durable 1.5.0 (spec §3.2-b): the harness runs afterTool on
+		// results IT wrote for calls that never executed (blocked,
+		// invalid_arguments, tool_unavailable, ...) — where
+		// `call.arguments` may be raw unvalidated model text. Nothing
+		// below may observe such a result: no grant resolution, no stuck
+		// count, no card collection. `undefined` passes it through.
+		if (!toolExecuted(result)) return undefined;
 		// Task 13: a skill arriving in the run (a `load_skill` result or a
 		// `read` of a SKILL.md path) starts a BACKGROUND card build —
 		// single-flight per body hash; failures warn and never block.

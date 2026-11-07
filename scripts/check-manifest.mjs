@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Release-manifest hygiene check (release-0.1 Task 3): asserts this
- * package's npm-facing shape — the published name, the peer/dev split
- * for host modules, publish metadata, and the tarball files whitelist.
+ * Release-manifest hygiene check: asserts this package's npm-facing
+ * shape — the published name, the peer/dev split for host modules,
+ * publish metadata, and the tarball files whitelist.
  *
  * Invoked as `node scripts/check-manifest.mjs` from `npm test` (this
  * repo's manifest contract is part of the gate). Exits nonzero naming
@@ -61,18 +61,26 @@ check(
 check(typeof manifest.bugs?.url === "string", "package.json: bugs.url absent");
 check(typeof manifest.homepage === "string", "package.json: homepage absent");
 
-/** Every host module an extension imports must be a peer. This package
- * develops against, and accepts, exactly the 1.4.0 host family.
+/** Every host module an extension imports must be a peer. The family
+ * develops against the pi-durable 1.5.0 host family (peers accept
+ * ~1.5.0; devDeps pin 1.5.0 exactly), keeping one type-compatible copy
+ * of chord/pi-ai/pi-durable.
  * @sigrun/shared ships runtime VALUE imports (accessOf) — it rides as a
  * peer so consumers' installs resolve it, with the dev file: link to
  * core's workspace (the ext-gateway family posture). */
 const HOST_MODULE_PINS = {
-	"@earendil-works/pi-durable": "1.4.0",
-	"@earendil-works/pi-ai": "1.4.0",
-	"@earendil-works/chord": "1.4.0",
+	"@earendil-works/pi-durable": "~1.5.0",
+	"@earendil-works/pi-ai": "~1.5.0",
+	"@earendil-works/chord": "~1.5.0",
 	// The core lines the warden runs against; it takes no runtime value
 	// imports from shared (types only), so each core line is accepted.
-	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1",
+	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0",
+};
+/** Development happens against pi-durable 1.5.0 (exact). */
+const DEV_PIN_OVERRIDES = {
+	"@earendil-works/chord": "1.5.0",
+	"@earendil-works/pi-ai": "1.5.0",
+	"@earendil-works/pi-durable": "1.5.0",
 };
 const peers = manifest.peerDependencies ?? {};
 const devDeps = manifest.devDependencies ?? {};
@@ -84,7 +92,7 @@ for (const [module, spec] of Object.entries(peers)) {
 	const pin = HOST_MODULE_PINS[module];
 	check(
 		spec === pin,
-		`package.json: peerDependencies["${module}"] must be exact "${pin}" (got ${JSON.stringify(spec)})`,
+		`package.json: peerDependencies["${module}"] must be exactly "${pin}" (the 1.5.0-era peers are ranges) (got ${JSON.stringify(spec)})`,
 	);
 	if (module === "@sigrun/shared") {
 		// The shared workspace keeps its file: dev shape (ext-gateway's
@@ -96,7 +104,7 @@ for (const [module, spec] of Object.entries(peers)) {
 		);
 		continue;
 	}
-	const devPin = pin;
+	const devPin = DEV_PIN_OVERRIDES[module] ?? pin;
 	check(
 		devDeps[module] === devPin,
 		`package.json: devDependencies["${module}"] must mirror the dev pin at exact "${devPin}" (got ${JSON.stringify(devDeps[module])})`,
