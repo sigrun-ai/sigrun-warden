@@ -28,7 +28,7 @@
 		"@earendil-works/chord": "~1.5.0",
 		"@earendil-works/pi-ai": "~1.5.0",
 		"@earendil-works/pi-durable": "~1.5.0",
-		"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1"
+		"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0"
 	},
 	"dependencies": {
 		"pi-warden": "^2.6.1",

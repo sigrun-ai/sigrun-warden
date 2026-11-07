@@ -74,7 +74,7 @@ const HOST_MODULE_PINS = {
 	"@earendil-works/chord": "~1.5.0",
 	// The core lines the warden runs against; it takes no runtime value
 	// imports from shared (types only), so each core line is accepted.
-	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1",
+	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0",
 };
 /** Development happens against pi-durable 1.5.0 (exact). */
 const DEV_PIN_OVERRIDES = {
