@@ -222,7 +222,7 @@ const SKILL_BLOCK_RE =
 // `References are relative to <dir>.` preamble line and a blank line —
 // neither is part of the skill body (and the absolute dir must never
 // reach a card prompt).
-const CORE_PREAMBLE_RE = /^References are relative to \S+\.\n\n/;
+const CORE_PREAMBLE_RE = /^References are relative to (.+?)\.\n\n/;
 
 export interface SkillBlock {
 	name: string;

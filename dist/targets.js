@@ -8,6 +8,7 @@
 export function targetsOf(args) {
     for (const value of Object.values(args)) {
         if (Array.isArray(value) &&
+            value.length > 0 &&
             value.every((item) => typeof item === "string" ||
                 typeof item === "number" ||
                 typeof item === "boolean")) {

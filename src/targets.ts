@@ -9,6 +9,7 @@ export function targetsOf(args: Record<string, unknown>): readonly string[] {
 	for (const value of Object.values(args)) {
 		if (
 			Array.isArray(value) &&
+			value.length > 0 &&
 			value.every(
 				(item) =>
 					typeof item === "string" ||

@@ -61,6 +61,12 @@ describe("targetsOf", () => {
 	it("no array → one canonical target (keys sorted)", () => {
 		expect(targetsOf({ b: 1, a: 2 })).toEqual(['{"a":2,"b":1}']);
 	});
+
+	it("an empty id array is one whole-call target", () => {
+		expect(targetsOf({ ids: [], force: true })).toEqual([
+			'{"force":true,"ids":[]}',
+		]);
+	});
 });
 
 describe("cardCheck", () => {

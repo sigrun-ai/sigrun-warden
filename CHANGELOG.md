@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Card checks treat an empty array-of-ids argument as one whole-call
+  target instead of zero targets, so a cleared destructive call cannot
+  pass without being checked.
+- Core skill preambles whose paths contain spaces are stripped before
+  hashing, keeping workspace paths out of card prompts.
+
 ## [0.1.5] - 2026-11-07
 
 ### Fixed
