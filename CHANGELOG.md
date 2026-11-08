@@ -11,9 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Card checks treat an empty array-of-ids argument as one whole-call
   target instead of zero targets, so a cleared destructive call cannot
-  pass without being checked.
+  pass without being checked. A cleared destructive call that passes
+  `ids: []` now escalates instead of silently running, so operators
+  whose jobs previously passed vacuously will see new escalations after
+  upgrading.
 - Core skill preambles whose paths contain spaces are stripped before
-  hashing, keeping workspace paths out of card prompts.
+  hashing when the preamble ends in `.` followed by a blank line.
 
 ## [0.1.5] - 2026-11-07
 

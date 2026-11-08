@@ -67,6 +67,10 @@ describe("targetsOf", () => {
 			'{"force":true,"ids":[]}',
 		]);
 	});
+
+	it("an empty id array falls through to the next non-empty scalar array", () => {
+		expect(targetsOf({ ids: [], names: ["a"] })).toEqual(["a"]);
+	});
 });
 
 describe("cardCheck", () => {
