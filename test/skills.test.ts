@@ -59,6 +59,25 @@ describe("skillsInRun", () => {
 		});
 	});
 
+	it("preamble with a space in the path", () => {
+		const body = "Archive the stale records.";
+		const prompt = `<skill name="acme-archive" location="/data/my skills/acme.v2/SKILL.md">\nReferences are relative to /data/my skills/acme.v2.\n\n${body}\n</skill>`;
+		const seen = skillsInRun([userEntry(prompt) as unknown as EntryRecord]);
+		expect(seen).toEqual<SkillSeen[]>([
+			{
+				name: "acme-archive",
+				location: "/data/my skills/acme.v2/SKILL.md",
+				body,
+				hash: sha(body),
+			},
+		]);
+
+		const withoutPreamble = `<skill name="acme-archive">${body}</skill>`;
+		expect(
+			skillsInRun([userEntry(withoutPreamble) as unknown as EntryRecord])[0]?.body,
+		).toBe(body);
+	});
+
 	it("two same-named <skill> blocks each hash their own body", () => {
 		const edited = `${BODY}\n3. Never touch seeding torrents.`;
 		const prompt = `<skill name="acme-cleanup">\n${BODY}\n</skill>\nlater\n<skill name="acme-cleanup">\n${edited}\n</skill>`;

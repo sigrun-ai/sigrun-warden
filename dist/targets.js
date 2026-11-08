@@ -1,13 +1,15 @@
 /**
  * The card-check targets of one call (warden spec §3.2): the elements
- * of the FIRST array-of-scalars argument, as strings — the ids the call
- * acts on. With no array-of-scalars argument, the whole call is ONE
- * target: the canonical JSON of its arguments.
+ * of the first NON-EMPTY array-of-scalars argument, as strings — the
+ * ids the call acts on. Empty arrays are skipped; with no non-empty
+ * array-of-scalars argument, the whole call is ONE target: the
+ * canonical JSON of its arguments.
  */
 /** One call's card-check targets. */
 export function targetsOf(args) {
     for (const value of Object.values(args)) {
         if (Array.isArray(value) &&
+            value.length > 0 &&
             value.every((item) => typeof item === "string" ||
                 typeof item === "number" ||
                 typeof item === "boolean")) {
