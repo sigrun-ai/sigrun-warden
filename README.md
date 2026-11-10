@@ -57,10 +57,13 @@ the same redacted call JSON.
 
 ## Settings
 
-Read from the extension's scoped settings file
-(`<configDir>/settings/sigrun-warden.json`), re-read on every tool call. Every
-invalid key falls back to its default with one `console.warn` naming the
-key (once per key per process).
+Declared as JSON Schema (`src/settings-schema.ts`) through
+`host.settings.declare`, so this extension's settings page is a generated
+form and every saved document is checked against it. Values live in
+the extension's scoped settings file
+(`<configDir>/settings/sigrun-warden.json`) and are re-read on every tool
+call. A malformed value falls back to its documented default, with a
+load-time warning and an admin notice; the form itself refuses one.
 
 ```jsonc
 {

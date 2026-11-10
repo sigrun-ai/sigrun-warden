@@ -35,7 +35,7 @@ import type { SigrunHost } from "@sigrun/sigrun/extension";
 
 import type { RunInfo } from "./context.js";
 import type { HoldLog } from "./log.js";
-import type { WardenSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 import type { StateStore } from "./state.js";
 
 /** The context the afterTool pipeline hands the guard (Task 11 shape). */

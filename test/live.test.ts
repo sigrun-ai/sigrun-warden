@@ -16,7 +16,7 @@ import { evaluateLive } from "../src/live.js";
 import type { LiveInput } from "../src/live.js";
 import { HoldLog } from "../src/log.js";
 import { routeOffline } from "../src/route.js";
-import { defaultSettings } from "../src/settings.js";
+import { defaultSettings } from "../src/settings-schema.js";
 import { StateStore } from "../src/state.js";
 import { createFakeHost, resetEntryIds, toolResultEntry, userEntry } from "./fake-host.js";
 import type { FakeHost } from "./fake-host.js";

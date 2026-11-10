@@ -7,8 +7,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Cooldown, decisionsJudge } from "../src/judge.js";
-import { defaultSettings } from "../src/settings.js";
-import type { WardenSettings } from "../src/settings.js";
+import { defaultSettings } from "../src/settings-schema.js";
+import type { WardenSettings } from "../src/settings-schema.js";
 import { createFakeHost } from "./fake-host.js";
 import type { FakeHost } from "./fake-host.js";
 

@@ -25,10 +25,12 @@
 		"prepare": "npm run build"
 	},
 	"peerDependencies": {
+		"@sigrun/sigrun": ">=0.13.0",
 		"@earendil-works/chord": "~1.5.0",
 		"@earendil-works/pi-ai": "~1.5.0",
 		"@earendil-works/pi-durable": "~1.5.0",
-		"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0"
+		"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0 || 0.12.0 || 0.13.0",
+		"typebox": "1.3.27"
 	},
 	"dependencies": {
 		"pi-warden": "^2.6.1",
@@ -43,7 +45,8 @@
 		"@types/node": "^26.6.4",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.3"
+		"vitest": "^5.0.3",
+		"typebox": "1.3.27"
 	},
 	"license": "MIT",
 	"repository": {

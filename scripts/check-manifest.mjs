@@ -67,14 +67,21 @@ check(typeof manifest.homepage === "string", "package.json: homepage absent");
  * of chord/pi-ai/pi-durable.
  * @sigrun/shared ships runtime VALUE imports (accessOf) — it rides as a
  * peer so consumers' installs resolve it, with the dev file: link to
- * core's workspace (the ext-gateway family posture). */
+ * core's workspace (the ext-gateway family posture).
+ * @sigrun/sigrun carries the declared-settings types and, for the test
+ * suite, the `@sigrun/sigrun/settings-schema` authoring surface.
+ * typebox is the schema builder settings-schema.ts calls at runtime; it
+ * is pi-ai's own exact dependency (1.3.27), i.e. the host-linked single
+ * copy. */
 const HOST_MODULE_PINS = {
+	"@sigrun/sigrun": ">=0.13.0",
 	"@earendil-works/pi-durable": "~1.5.0",
 	"@earendil-works/pi-ai": "~1.5.0",
 	"@earendil-works/chord": "~1.5.0",
+	typebox: "1.3.27",
 	// The core lines the warden runs against; it takes no runtime value
 	// imports from shared (types only), so each core line is accepted.
-	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0",
+	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0 || 0.12.0 || 0.13.0",
 };
 /** Development happens against pi-durable 1.5.0 (exact). */
 const DEV_PIN_OVERRIDES = {
@@ -84,7 +91,16 @@ const DEV_PIN_OVERRIDES = {
 };
 const peers = manifest.peerDependencies ?? {};
 const devDeps = manifest.devDependencies ?? {};
+check(
+	peers["@sigrun/sigrun"] === HOST_MODULE_PINS["@sigrun/sigrun"],
+	`package.json: peerDependencies["@sigrun/sigrun"] must be "${HOST_MODULE_PINS["@sigrun/sigrun"]}"`,
+);
+check(
+	devDeps["@sigrun/sigrun"] === "file:../sigrun",
+	'package.json: devDependencies["@sigrun/sigrun"] must be "file:../sigrun"',
+);
 for (const [module, spec] of Object.entries(peers)) {
+	if (module === "@sigrun/sigrun") continue;
 	check(
 		module in HOST_MODULE_PINS,
 		`package.json: peerDependencies carries non-host module "${module}"`,

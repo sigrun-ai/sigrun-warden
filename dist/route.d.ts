@@ -13,7 +13,7 @@ import type { Classification } from "./classify.js";
 import type { Presence, RunInfo } from "./context.js";
 import type { StateStore } from "./state.js";
 import type { HoldLog } from "./log.js";
-import type { WardenSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 import type { Judge } from "pi-typesafe";
 import { Cooldown } from "./judge.js";
 export interface RouteInput {

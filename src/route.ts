@@ -25,7 +25,7 @@ import { callFingerprint, grantKey } from "./state.js";
 import { targetsOf } from "./targets.js";
 import type { StateStore } from "./state.js";
 import type { HoldLog } from "./log.js";
-import type { WardenSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 import type { Judge } from "pi-typesafe";
 import { Cooldown } from "./judge.js";
 import { evaluateLive, judgeUnknown } from "./live.js";

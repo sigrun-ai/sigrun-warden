@@ -17,7 +17,7 @@ import { runInfo } from "../src/context.js";
 import { Cooldown } from "../src/judge.js";
 import { HoldLog } from "../src/log.js";
 import { routeOffline } from "../src/route.js";
-import { defaultSettings, parseSettings } from "../src/settings.js";
+import { defaultSettings } from "../src/settings-schema.js";
 import { StateStore } from "../src/state.js";
 import {
 	assistantEntry,
@@ -130,12 +130,10 @@ async function jobEnv(opts: {
 	}
 	const log = new HoldLog(`${fake.root}/state/holds.jsonl`, () => new Date());
 	const store = new StateStore(`${fake.root}/state`);
-	const settings = parseSettings(
-		{
-			clearances: opts.clearances ?? [{ job: JOB, tools: [TOOL] }],
-		},
-		() => {},
-	);
+	const settings = {
+		...defaultSettings(),
+		clearances: opts.clearances ?? [{ job: JOB, tools: [TOOL] }],
+	};
 	return { fake, escalations, log, store, settings, cooldown: new Cooldown() };
 }
 

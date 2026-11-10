@@ -11,14 +11,25 @@ import type {
 
 import { buildCard, CardStore, type Card } from "./cards.js";
 import { HoldLog, type HoldRecord } from "./log.js";
-import { parseSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 import { skillsInRun } from "./skills.js";
 
 const RUN_PAGE = 500;
 
-/** Build the warden's slash commands over the host (one per factory). */
+/** What the commands need from the factory's declared settings handle. */
+export interface WardenSettingsRead {
+	get(): Promise<WardenSettings>;
+}
+
+/**
+ * Build the warden's slash commands over the host (one per factory). The
+ * declared settings read is passed in rather than re-declared: core allows
+ * one declaration per extension, and the command reads settings at RUN time
+ * (never in the factory body, where the slug is still provisional).
+ */
 export function createWardenCommands(
 	host: SigrunHost,
+	settings: WardenSettingsRead,
 ): readonly ExtensionCommandContribution[] {
 	return [
 		{
@@ -26,7 +37,7 @@ export function createWardenCommands(
 			description: "Skill cards: list, show, rebuild; hold log: list",
 			args: "cards | card <skill> [--rebuild] | holds [n]",
 			run: async (ctx) => ({
-				notice: await runWardenCommands(host, ctx.conversationId, ctx.args),
+				notice: await runWardenCommands(host, settings, ctx.conversationId, ctx.args),
 			}),
 		},
 	];
@@ -34,6 +45,7 @@ export function createWardenCommands(
 
 async function runWardenCommands(
 	host: SigrunHost,
+	settings: WardenSettingsRead,
 	conversationId: ConversationId,
 	args: string,
 ): Promise<string> {
@@ -44,7 +56,7 @@ async function runWardenCommands(
 		const rebuild = rest.includes("--rebuild");
 		const skill = rest.find((word) => word !== "--rebuild");
 		if (skill === undefined) return "usage: /warden card <skill> [--rebuild]";
-		if (rebuild) return cardRebuild(host, conversationId, skill);
+		if (rebuild) return cardRebuild(host, settings, conversationId, skill);
 		return cardShow(host, skill);
 	}
 	if (sub === "holds") return holdsList(host, rest[0]);
@@ -109,6 +121,7 @@ async function cardShow(host: SigrunHost, skill: string): Promise<string> {
 
 async function cardRebuild(
 	host: SigrunHost,
+	settings: WardenSettingsRead,
 	conversationId: ConversationId,
 	skill: string,
 ): Promise<string> {
@@ -124,9 +137,7 @@ async function cardRebuild(
 	if (copy === undefined) {
 		return `no copy of ${skill} in this conversation; load it first`;
 	}
-	const raw = await host.stores.settings.get();
-	const settings = parseSettings(raw, (message) => console.warn(message));
-	const card = await buildCard(host, copy, settings);
+	const card = await buildCard(host, copy, await settings.get());
 	if (card === undefined) return `card build failed for ${skill}`;
 	return card.text;
 }

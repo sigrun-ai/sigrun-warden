@@ -8,7 +8,7 @@ import { presenceOf, runInfo } from "./context.js";
 import { Cooldown, decisionsJudge } from "./judge.js";
 import { HoldLog } from "./log.js";
 import { resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
-import { parseSettings } from "./settings.js";
+import { WARDEN_SETTINGS_SCHEMA } from "./settings-schema.js";
 import { StateStore } from "./state.js";
 import { toolExecuted } from "./tool-executed.js";
 /**
@@ -21,6 +21,13 @@ import { toolExecuted } from "./tool-executed.js";
  */
 export default function createWarden(host, deps = {}) {
     void deps;
+    // Declare first: the settings page, the defaults and the malformed-value
+    // repair are core's from here on. Every read is per tool call — never in
+    // this factory body, whose provisional slug is the package's
+    // (`warden`), not the declared name's (`sigrun-warden`).
+    const settingsHandle = host.settings.declare({
+        schema: WARDEN_SETTINGS_SCHEMA,
+    });
     const log = new HoldLog(`${host.stores.paths.state}/holds.jsonl`, () => new Date());
     const store = new StateStore(host.stores.paths.state);
     // Instance-wide judge cooldown (in memory — a restart re-trusts the judge).
@@ -29,8 +36,7 @@ export default function createWarden(host, deps = {}) {
         // The hook's contract: catch EVERYTHING and block — never let a
         // call through on an exception.
         try {
-            const raw = await host.stores.settings.get();
-            const settings = parseSettings(raw, (message) => console.warn(message));
+            const settings = await settingsHandle.get();
             startPruneOnce(log, settings.retentionDays);
             const annotations = async (tool) => annotationFromHookResult(tool, (await host.publishedHooks.call("mcp.tool-annotations", { tool }, { conversationId: api.conversationId })));
             const classification = await classify({ name: call.name, arguments: call.arguments }, { annotations, settings });
@@ -72,8 +78,7 @@ export default function createWarden(host, deps = {}) {
         if (skill !== undefined) {
             void (async () => {
                 try {
-                    const raw = await host.stores.settings.get();
-                    const settings = parseSettings(raw, (message) => console.warn(message));
+                    const settings = await settingsHandle.get();
                     const card = await buildCard(host, skill, settings);
                     if (card === undefined) {
                         console.warn(`warden: card build failed for ${skill.name}`);
@@ -101,8 +106,7 @@ export default function createWarden(host, deps = {}) {
         // resolution above): masking → planted-instructions taint → stuck.
         // A thrown guard must never drop the tool's result.
         try {
-            const raw = await host.stores.settings.get();
-            const settings = parseSettings(raw, (message) => console.warn(message));
+            const settings = await settingsHandle.get();
             const run = await runInfo(host, api.conversationId);
             return await afterToolGuard(call, result, {
                 host,
@@ -127,7 +131,7 @@ export default function createWarden(host, deps = {}) {
             hooks: [hook(ToolTask, { beforeTool, afterTool })],
         }),
         interactionKinds: ["warden.confirm"],
-        commands: createWardenCommands(host),
+        commands: createWardenCommands(host, settingsHandle),
     };
 }
 /**
@@ -182,7 +186,7 @@ function bodyHash(body) {
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
 }
-export { parseSettings, defaultSettings, resetWarnedKeys } from "./settings.js";
+export { WARDEN_SETTINGS_SCHEMA, defaultSettings } from "./settings-schema.js";
 export { classify, annotationFromHookResult } from "./classify.js";
 export { HoldLog } from "./log.js";
 export { globToRegExp, matchGlob } from "./glob.js";

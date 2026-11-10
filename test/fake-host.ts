@@ -1,7 +1,12 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SigrunHost } from "@sigrun/sigrun/extension";
+import { checkStoredSettings } from "@sigrun/sigrun/settings-schema";
+import type {
+	DeclaredSettings,
+	SettingsDeclaration,
+	SigrunHost,
+} from "@sigrun/sigrun/extension";
 import type { ConversationId, EntryId } from "@earendil-works/pi-durable";
 import type { InteractionRecord } from "@sigrun/shared/interactions";
 
@@ -133,6 +138,8 @@ export interface FakeHostOptions {
 	decisionResults?: unknown[];
 	/** `models.complete` implementation; absent → a fixed `{text: "card", model: "acme/utility-1"}` reply. */
 	complete?: (input: unknown) => Promise<{ text: string; model: string }>;
+	/** The stored `settings/<slug>.json` document (absent → `{}`, i.e. all defaults). */
+	settings?: Record<string, unknown>;
 }
 
 export interface FakeInteractionCalls {
@@ -169,6 +176,10 @@ export interface FakeHost {
 	readonly decisionCalls: readonly { request: unknown; opts: unknown }[];
 	/** Every `models.complete` input, in order. */
 	readonly modelCalls: readonly unknown[];
+	/** The declaration the warden factory passed to `settings.declare`. */
+	readonly declaration: SettingsDeclaration | undefined;
+	/** The checked read through THAT declaration (defaults applied, repairs). */
+	readSettings(): Promise<Record<string, unknown>>;
 	/** Append more `decisions.evaluate` results to the queue. */
 	pushDecisionResults(...results: unknown[]): void;
 	cleanup(): Promise<void>;
@@ -200,6 +211,12 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 	const decisionCalls: { request: unknown; opts: unknown }[] = [];
 	const decisionResults = [...(options.decisionResults ?? [])];
 	const modelCalls: unknown[] = [];
+	// The stored settings document: raw reads see it as written, the declared
+	// handle checks it (defaults applied, malformed values repaired).
+	let settingsDoc: Record<string, unknown> = options.settings ?? {};
+	const declaration: { current: SettingsDeclaration | undefined; handle?: DeclaredSettings<Record<string, unknown>, Record<string, unknown>> } = {
+		current: undefined,
+	};
 	const notUsed = (): never => {
 		throw new Error("not used in warden tests");
 	};
@@ -255,10 +272,34 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 	};
 
 	const host = {
+		settings: {
+			declare: <S, U = Record<string, unknown>>(
+				decl: SettingsDeclaration,
+			): DeclaredSettings<S, U> => {
+				declaration.current = decl;
+				const handle = {
+					get: async () =>
+						checkStoredSettings(decl.schema, settingsDoc).value as S,
+					user: (): { get(): Promise<U> } => {
+						throw new Error("the warden declares no per-user settings schema");
+					},
+				};
+				declaration.handle = handle as DeclaredSettings<
+					Record<string, unknown>,
+					Record<string, unknown>
+				>;
+				return handle;
+			},
+		},
 		stores: {
 			user: notUsed,
-			secrets: { get: notUsed, set: notUsed },
-			settings: { get: async () => ({}), set: notUsed },
+			secrets: { get: notUsed, set: notUsed, delete: notUsed },
+			settings: {
+				get: async () => settingsDoc,
+				set: async (value: Record<string, unknown>) => {
+					settingsDoc = value;
+				},
+			},
 			paths: {
 				data: join(root, "data"),
 				state: join(root, "state"),
@@ -445,6 +486,15 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 		entriesQueries,
 		decisionCalls,
 		modelCalls,
+		get declaration() {
+			return declaration.current;
+		},
+		async readSettings(): Promise<Record<string, unknown>> {
+			if (declaration.handle === undefined) {
+				throw new Error("the factory declared no settings schema");
+			}
+			return declaration.handle.get();
+		},
 		pushDecisionResults(...results: unknown[]) {
 			decisionResults.push(...results);
 		},

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Declare the warden's settings as JSON Schema through `host.settings.declare`, so its settings page is a generated form (a `Judge` group, the `Thresholds` group, `Clearances` and `Rules` entry lists, a `Retention days` group) and every save is checked against the schema. The hand-written `parseSettings` parser is gone: core applies the same defaults and repairs a malformed stored value to its default — the old per-key fallback, now with a load-time warning and an admin notice instead of a silent `console.warn`. A clearance or rule entry whose required fields are missing or outside their allowed values is dropped, as before; the one difference is that a clearance with a non-string tool now keeps its valid tools instead of being discarded entirely (never more permissive — an unlisted tool is still not cleared). Requires sigrun 0.13.0 or newer.
+- `retentionDays` is a `restart` setting (the hold log prunes once per process); every other key is `live`, re-read on each tool call as before.
+- `@sigrun/sigrun` is now a peer dependency (`>=0.13.0`) and `typebox` an exact peer/dev pin (1.3.27), the copies the schema and the declared-settings types come from.
+
 ## [0.1.7] - 2026-11-08
 
 - CI: test against the latest released core (core-ref: release). No code change.
