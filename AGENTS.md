@@ -13,8 +13,10 @@ classification (`matchPatterns`, `isReadOnlyCommand`).
 
 - `src/index.ts` — the default-export factory (arity one: host first,
   test deps second) returning the extension + `interactionKinds`.
-- `src/settings.ts` — settings parse with per-key fallback; warn dedup
-  is module-scoped, tests use the exported `resetWarnedKeys()`.
+- `src/settings-schema.ts` — the settings JSON Schema (`host.settings.declare`
+  in the factory); core owns the defaults and the malformed-value repair.
+  Settings are read per tool call, never in the factory body (its slug is
+  the package-derived provisional one, not `sigrun-warden`).
 - `src/classify.ts` — the §3.1 classification order; do not reorder.
 - `src/log.ts` — JSONL hold log with retention-split prune.
 - `src/glob.ts` — anchored `*`-only globs (`*` matches within a segment).

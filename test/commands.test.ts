@@ -9,8 +9,8 @@ import { redact } from "pi-warden";
 
 import { buildCard, CardStore } from "../src/cards.js";
 import { HoldLog } from "../src/log.js";
-import { createWardenCommands } from "../src/commands.js";
-import { defaultSettings } from "../src/settings.js";
+import createWarden from "../src/index.js";
+import { defaultSettings } from "../src/settings-schema.js";
 import {
 	createFakeHost,
 	resetEntryIds,
@@ -48,7 +48,9 @@ describe("/warden commands", () => {
 	});
 
 	function wardenCommand() {
-		return createWardenCommands(fake.host)[0]!;
+		// The command surface the extension actually publishes: it reads
+		// settings through the handle the factory declared.
+		return createWarden(fake.host).commands![0]!;
 	}
 
 	it("cards lists", async () => {
@@ -226,7 +228,7 @@ describe("/warden commands", () => {
 		expect(zero?.notice).toBe("");
 		const empty = await createFakeHost({});
 		try {
-			const emptyResult = await createWardenCommands(empty.host)[0]!.run({
+			const emptyResult = await createWarden(empty.host).commands![0]!.run({
 				conversationId: CONVERSATION,
 				args: "holds",
 				principal: ALICE,

@@ -8,7 +8,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
 
-import type { WardenSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 import type { SkillSeen } from "./skills.js";
 
 export interface Card {

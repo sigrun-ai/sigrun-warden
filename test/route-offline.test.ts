@@ -10,7 +10,7 @@ import type { Classification } from "../src/classify.js";
 import { runInfo } from "../src/context.js";
 import { HoldLog } from "../src/log.js";
 import { routeOffline, startPruneOnce, resetPruneGuardForTests } from "../src/route.js";
-import { defaultSettings } from "../src/settings.js";
+import { defaultSettings } from "../src/settings-schema.js";
 import { grantKey, StateStore } from "../src/state.js";
 import { createFakeHost, resetEntryIds, userEntry, assistantEntry } from "./fake-host.js";
 import type { FakeHost } from "./fake-host.js";

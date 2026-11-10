@@ -5,7 +5,7 @@ import {
 	classify,
 	type AnnotationLookup,
 } from "../src/classify.js";
-import { defaultSettings, type WardenSettings } from "../src/settings.js";
+import { defaultSettings, type WardenSettings } from "../src/settings-schema.js";
 
 const settings = (overrides: Partial<WardenSettings> = {}): WardenSettings => ({
 	...defaultSettings(),

@@ -1,4 +1,4 @@
-import type { WardenSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 export type Classification = {
     kind: "allow";
     reason: string;

@@ -8,8 +8,8 @@ import type { SigrunExtensionResult, SigrunHost } from "@sigrun/sigrun/extension
  * path (Task 14) drives cleared job calls.
  */
 export default function createWarden(host: SigrunHost, deps?: Record<string, never>): SigrunExtensionResult;
-export { parseSettings, defaultSettings, resetWarnedKeys } from "./settings.js";
-export type { WardenSettings } from "./settings.js";
+export { WARDEN_SETTINGS_SCHEMA, defaultSettings } from "./settings-schema.js";
+export type { WardenSettings } from "./settings-schema.js";
 export { classify, annotationFromHookResult } from "./classify.js";
 export type { AnnotationLookup, Classification, ClassifyDeps } from "./classify.js";
 export { HoldLog } from "./log.js";

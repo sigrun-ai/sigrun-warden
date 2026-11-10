@@ -18,7 +18,7 @@ import { Cooldown } from "../src/judge.js";
 import { evaluateLive } from "../src/live.js";
 import { HoldLog } from "../src/log.js";
 import { routeOffline } from "../src/route.js";
-import { defaultSettings } from "../src/settings.js";
+import { defaultSettings } from "../src/settings-schema.js";
 import { StateStore } from "../src/state.js";
 import {
 	createFakeEscalations,

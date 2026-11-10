@@ -11,7 +11,7 @@ import { runInfo } from "../src/context.js";
 import { HoldLog } from "../src/log.js";
 import { resetNoProviderWarning } from "../src/escalate.js";
 import { resolveReservedGrant, routeOffline } from "../src/route.js";
-import { defaultSettings } from "../src/settings.js";
+import { defaultSettings } from "../src/settings-schema.js";
 import { grantKey, StateStore } from "../src/state.js";
 import { createFakeEscalations, createFakeHost, userEntry, assistantEntry } from "./fake-host.js";
 import type { FakeEscalations, FakeHost } from "./fake-host.js";

@@ -1,22 +1,26 @@
 import { buildCard, CardStore } from "./cards.js";
 import { HoldLog } from "./log.js";
-import { parseSettings } from "./settings.js";
 import { skillsInRun } from "./skills.js";
 const RUN_PAGE = 500;
-/** Build the warden's slash commands over the host (one per factory). */
-export function createWardenCommands(host) {
+/**
+ * Build the warden's slash commands over the host (one per factory). The
+ * declared settings read is passed in rather than re-declared: core allows
+ * one declaration per extension, and the command reads settings at RUN time
+ * (never in the factory body, where the slug is still provisional).
+ */
+export function createWardenCommands(host, settings) {
     return [
         {
             name: "warden",
             description: "Skill cards: list, show, rebuild; hold log: list",
             args: "cards | card <skill> [--rebuild] | holds [n]",
             run: async (ctx) => ({
-                notice: await runWardenCommands(host, ctx.conversationId, ctx.args),
+                notice: await runWardenCommands(host, settings, ctx.conversationId, ctx.args),
             }),
         },
     ];
 }
-async function runWardenCommands(host, conversationId, args) {
+async function runWardenCommands(host, settings, conversationId, args) {
     const words = args.trim().split(/\s+/).filter((word) => word.length > 0);
     const [sub, ...rest] = words;
     if (sub === "cards")
@@ -27,7 +31,7 @@ async function runWardenCommands(host, conversationId, args) {
         if (skill === undefined)
             return "usage: /warden card <skill> [--rebuild]";
         if (rebuild)
-            return cardRebuild(host, conversationId, skill);
+            return cardRebuild(host, settings, conversationId, skill);
         return cardShow(host, skill);
     }
     if (sub === "holds")
@@ -87,7 +91,7 @@ async function cardShow(host, skill) {
         return `no card for ${skill}`;
     return cards[0].text;
 }
-async function cardRebuild(host, conversationId, skill) {
+async function cardRebuild(host, settings, conversationId, skill) {
     // Newest page first: a skill loaded late in a long run must be found.
     const page = await host.conversations.entries(conversationId, { order: "descending" }, RUN_PAGE, undefined);
     const seen = skillsInRun(page.items);
@@ -95,9 +99,7 @@ async function cardRebuild(host, conversationId, skill) {
     if (copy === undefined) {
         return `no copy of ${skill} in this conversation; load it first`;
     }
-    const raw = await host.stores.settings.get();
-    const settings = parseSettings(raw, (message) => console.warn(message));
-    const card = await buildCard(host, copy, settings);
+    const card = await buildCard(host, copy, await settings.get());
     if (card === undefined)
         return `card build failed for ${skill}`;
     return card.text;

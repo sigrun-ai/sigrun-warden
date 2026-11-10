@@ -12,7 +12,7 @@
  */
 import type { Judge } from "pi-typesafe";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
-import type { WardenSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 /**
  * Session-scoped pause on a failing judge: three consecutive failures
  * pause judgment calls for five minutes. Nothing is persisted; a new

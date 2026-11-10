@@ -16,7 +16,7 @@ import type { Questions } from "pi-typesafe";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
 import type { DecisionRequest, DecisionResult } from "@sigrun/shared/decisions";
 
-import type { WardenSettings } from "./settings.js";
+import type { WardenSettings } from "./settings-schema.js";
 
 const FAILURE_LIMIT = 3;
 const COOLDOWN_MS = 5 * 60 * 1000;

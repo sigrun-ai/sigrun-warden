@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { buildCard, CARD_SYSTEM_PROMPT, CardStore } from "../src/cards.js";
-import { defaultSettings } from "../src/settings.js";
-import type { WardenSettings } from "../src/settings.js";
+import { defaultSettings } from "../src/settings-schema.js";
+import type { WardenSettings } from "../src/settings-schema.js";
 import type { SkillSeen } from "../src/skills.js";
 import { createFakeHost } from "./fake-host.js";
 import type { FakeHost } from "./fake-host.js";
