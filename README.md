@@ -63,7 +63,8 @@ form and every saved document is checked against it. Values live in
 the extension's scoped settings file
 (`<configDir>/settings/sigrun-warden.json`) and are re-read on every tool
 call. A malformed value falls back to its documented default, with a
-load-time warning and an admin notice; the form itself refuses one.
+load-time warning; the form itself refuses one. `retentionDays` is the one
+`restart`-class key: it lands at the next boot.
 
 ```jsonc
 {
