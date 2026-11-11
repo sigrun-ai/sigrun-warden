@@ -60,7 +60,7 @@ export class Cooldown {
  * The judge for one settings snapshot: `undefined` when the judge is
  * disabled or the cooldown is active. The evaluate implementation:
  *
- * - calls `host.decisions.evaluate(request, {model: settings.decisionModel, signal})`;
+ * - calls `host.decisions.evaluate(request, {model: settings.decisionModel, user, signal})`;
  * - on `ok:true` returns the RAW Evaluation shape `{answers, usage, model, elapsedMs}`;
  * - on `ok:false` throws `Error("<code>: <error>")` so pi-warden's and
  *   our ask paths see a failure;
@@ -71,6 +71,7 @@ export function decisionsJudge(
 	host: SigrunHost,
 	settings: WardenSettings,
 	cooldown: Cooldown,
+	user?: string,
 ): Judge | undefined {
 	if (!settings.judge.enabled) return undefined;
 	if (cooldown.active) return undefined;
@@ -83,6 +84,7 @@ export function decisionsJudge(
 			try {
 				result = await host.decisions.evaluate(request as unknown as DecisionRequest, {
 					model: settings.decisionModel,
+					user,
 					signal: options?.signal,
 				});
 			} catch (error) {

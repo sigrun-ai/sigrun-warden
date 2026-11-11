@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Judge evaluations now run for the acting user: live calls use the conversation owner and job runs use the job owner, so an unset `decisionModel` follows that user's decision-model default. Core resolves a removed job owner to the primary admin. Both the before-tool and after-tool judges receive the same presence owner.
+- `decisionModel` and `cardModel` are model dropdowns in the generated settings form, restricted to decision and chat models respectively. The factory declares the display title `Warden`.
+- Requires sigrun 0.15.0 or newer; the `@sigrun/shared` peer range now includes the 0.14 and 0.15 core lines.
+
 ## [0.1.8] - 2026-11-10
 
 ### Changed

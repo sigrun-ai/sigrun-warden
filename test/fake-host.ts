@@ -134,7 +134,7 @@ export interface FakeHostOptions {
 	escalations?: FakeEscalations;
 	/** Annotation / other published-hook results (queue, last repeats). */
 	hookResults?: unknown[];
-	/** Queue of `decisions.evaluate` results; the last one repeats. A thunk THROWS (a transport failure). */
+	/** Queue of `decisions.evaluate` results; the last one repeats. A thunk receives `(request, opts)` and may return a result or THROW (a transport failure). */
 	decisionResults?: unknown[];
 	/** `models.complete` implementation; absent → a fixed `{text: "card", model: "acme/utility-1"}` reply. */
 	complete?: (input: unknown) => Promise<{ text: string; model: string }>;
@@ -436,7 +436,9 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 					decisionResults.length > 1
 						? decisionResults.shift()
 						: decisionResults[0];
-				if (typeof next === "function") return (next as () => unknown)();
+				if (typeof next === "function") {
+					return (next as (request: unknown, opts: unknown) => unknown)(request, opts);
+				}
 				if (next === undefined) {
 					return { ok: false, code: "not_configured", error: "no fake result queued" };
 				}

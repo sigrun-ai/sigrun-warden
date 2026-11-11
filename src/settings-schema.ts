@@ -162,6 +162,7 @@ export const WARDEN_SETTINGS_SCHEMA = asJsonSchema(
 				description: "The `provider/model` the judge calls. Absent: the core decisions model.",
 				minLength: 1,
 				"x-sigrun-apply": "live",
+				"x-sigrun-model": "decision",
 			}),
 		),
 		thresholds: Type.Object(
@@ -209,6 +210,7 @@ export const WARDEN_SETTINGS_SCHEMA = asJsonSchema(
 					"The `provider/model` used to build skill cards. Absent: core's utility role.",
 				minLength: 1,
 				"x-sigrun-apply": "live",
+				"x-sigrun-model": "chat",
 			}),
 		),
 		steerBudget: Type.Number({

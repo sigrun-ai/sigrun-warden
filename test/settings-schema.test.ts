@@ -61,6 +61,18 @@ describe("warden settings schema", () => {
 		return { fake, factory: createWarden(fake.host) };
 	}
 
+	it("model fields declare their kinds", () => {
+		const properties = (WARDEN_SETTINGS_SCHEMA as unknown as {
+			properties: Record<string, Record<string, unknown>>;
+		}).properties;
+		expect(properties.decisionModel?.["x-sigrun-model"]).toBe("decision");
+		expect(properties.cardModel?.["x-sigrun-model"]).toBe("chat");
+	});
+
+	it("the factory declares the Warden title", async () => {
+		expect((await declared()).factory.title).toBe("Warden");
+	});
+
 	it("schema is drawable", () => {
 		assertDrawable(WARDEN_SETTINGS_SCHEMA);
 	});
