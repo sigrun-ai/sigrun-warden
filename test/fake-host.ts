@@ -120,6 +120,8 @@ export function toolCallEntry(
 export interface FakeHostOptions {
 	/** meta.owner for `conversations.meta`. */
 	owner?: string;
+	/** Throw from `conversations.meta` (afterTool must degrade only the judge's user). */
+	metaError?: Error;
 	/** meta.jobId for `conversations.meta`. */
 	metaJobId?: string;
 	/** meta.internal for `conversations.meta`. */
@@ -307,11 +309,14 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 			},
 		},
 		conversations: {
-			meta: async (_id: ConversationId) => ({
-				...(options.owner === undefined ? {} : { owner: options.owner }),
-				...(options.metaJobId === undefined ? {} : { jobId: options.metaJobId }),
-				...(options.internal === true ? { internal: true } : {}),
-			}),
+			meta: async (_id: ConversationId) => {
+				if (options.metaError !== undefined) throw options.metaError;
+				return {
+					...(options.owner === undefined ? {} : { owner: options.owner }),
+					...(options.metaJobId === undefined ? {} : { jobId: options.metaJobId }),
+					...(options.internal === true ? { internal: true } : {}),
+				};
+			},
 			entries: async (
 				_id: ConversationId,
 				query: unknown,

@@ -146,6 +146,7 @@ describe("decisionsJudge", () => {
 					// Core's effective-settings rule: an unknown named user resolves
 					// to the earliest-created admin, never to a missing-user error.
 					const user = (opts as { user?: string }).user;
+					expect(user).toBe("removed-owner");
 					const resolved = directory.some((entry) => entry.user === user)
 						? user
 						: directory[0]!.user;
@@ -208,6 +209,44 @@ describe("decisionsJudge", () => {
 			"job-owner",
 			"job-owner",
 		]);
+	});
+
+	it("a failed afterTool presence lookup only degrades the judge's user", async () => {
+		fake = await createFakeHost({
+			metaError: new Error("directory unavailable"),
+			decisionResults: [
+				{
+					...OK_RESULT,
+					answers: { security_risk: { type: "noul", noul: 0.05 } },
+				},
+			],
+		});
+		const factory = createWarden(fake.host);
+		const registration = factory.extension?.hooks?.[0]?.handlers as {
+			afterTool(
+				call: ToolHookCall,
+				result: ToolExecutionResult,
+				api: HookApi,
+				context: ChordContext,
+			): Promise<ToolExecutionResult | undefined>;
+		};
+		const call = {
+			type: "toolCall",
+			id: "call-2",
+			name: "acme-search/search_json",
+			arguments: { query: "dryer repair" },
+		} as ToolHookCall;
+		const secret = "sk-acme-1234567890abcdef";
+		const replaced = await registration.afterTool(
+			call,
+			{ output: [{ type: "text", text: `connected with ${secret}` }] },
+			{ conversationId: 1 } as HookApi,
+			{} as ChordContext,
+		);
+		expect(JSON.stringify(replaced?.output)).toContain("[redacted]");
+		expect(JSON.stringify(replaced?.output)).not.toContain(secret);
+		expect(fake.decisionCalls).toHaveLength(1);
+		expect((fake.decisionCalls[0]!.opts as { user?: string }).user).toBeUndefined();
 	});
 
 	it("judge.enabled false → no decision request is ever made", async () => {
