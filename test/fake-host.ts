@@ -120,6 +120,8 @@ export function toolCallEntry(
 export interface FakeHostOptions {
 	/** meta.owner for `conversations.meta`. */
 	owner?: string;
+	/** Throw from `conversations.meta` (afterTool must degrade only the judge's user). */
+	metaError?: Error;
 	/** meta.jobId for `conversations.meta`. */
 	metaJobId?: string;
 	/** meta.internal for `conversations.meta`. */
@@ -134,7 +136,7 @@ export interface FakeHostOptions {
 	escalations?: FakeEscalations;
 	/** Annotation / other published-hook results (queue, last repeats). */
 	hookResults?: unknown[];
-	/** Queue of `decisions.evaluate` results; the last one repeats. A thunk THROWS (a transport failure). */
+	/** Queue of `decisions.evaluate` results; the last one repeats. A thunk receives `(request, opts)` and may return a result or THROW (a transport failure). */
 	decisionResults?: unknown[];
 	/** `models.complete` implementation; absent → a fixed `{text: "card", model: "acme/utility-1"}` reply. */
 	complete?: (input: unknown) => Promise<{ text: string; model: string }>;
@@ -307,11 +309,14 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 			},
 		},
 		conversations: {
-			meta: async (_id: ConversationId) => ({
-				...(options.owner === undefined ? {} : { owner: options.owner }),
-				...(options.metaJobId === undefined ? {} : { jobId: options.metaJobId }),
-				...(options.internal === true ? { internal: true } : {}),
-			}),
+			meta: async (_id: ConversationId) => {
+				if (options.metaError !== undefined) throw options.metaError;
+				return {
+					...(options.owner === undefined ? {} : { owner: options.owner }),
+					...(options.metaJobId === undefined ? {} : { jobId: options.metaJobId }),
+					...(options.internal === true ? { internal: true } : {}),
+				};
+			},
 			entries: async (
 				_id: ConversationId,
 				query: unknown,
@@ -436,7 +441,9 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 					decisionResults.length > 1
 						? decisionResults.shift()
 						: decisionResults[0];
-				if (typeof next === "function") return (next as () => unknown)();
+				if (typeof next === "function") {
+					return (next as (request: unknown, opts: unknown) => unknown)(request, opts);
+				}
 				if (next === undefined) {
 					return { ok: false, code: "not_configured", error: "no fake result queued" };
 				}

@@ -1,15 +1,18 @@
 /**
  * Task 12 judge-adapter tests: `decisionsJudge` over
  * `host.decisions.evaluate`, the raw Evaluation pass-through, the
- * throw-on-ok:false mapping, the decision-model pass-through, and the
- * 3-failures → 5-minute Cooldown.
+ * throw-on-ok:false mapping, the decision-model and acting-user
+ * pass-through, and the 3-failures → 5-minute Cooldown.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { HookApi, ToolExecutionResult, ToolHookCall } from "@earendil-works/pi-durable";
+import type { Context as ChordContext } from "@earendil-works/chord";
 
+import createWarden from "../src/index.js";
 import { Cooldown, decisionsJudge } from "../src/judge.js";
 import { defaultSettings } from "../src/settings-schema.js";
 import type { WardenSettings } from "../src/settings-schema.js";
-import { createFakeHost } from "./fake-host.js";
+import { createFakeHost, userEntry } from "./fake-host.js";
 import type { FakeHost } from "./fake-host.js";
 
 const REQUEST = {
@@ -119,6 +122,131 @@ describe("decisionsJudge", () => {
 		await judge.evaluate(REQUEST);
 		expect(fake.decisionCalls).toHaveLength(1);
 		expect(fake.decisionCalls[0]!.opts).toEqual({ model: "acme/model-9", signal: undefined });
+	});
+
+	it("the judge passes the acting user", async () => {
+		fake = await createFakeHost({ decisionResults: [OK_RESULT] });
+		const judge = decisionsJudge(fake.host, defaultSettings(), new Cooldown(), "alice")!;
+		await judge.evaluate(REQUEST);
+		expect(fake.decisionCalls[0]!.opts).toEqual({
+			model: undefined,
+			user: "alice",
+			signal: undefined,
+		});
+	});
+
+	it("an orphaned job's judge uses the primary admin's default", async () => {
+		const directory = [
+			{ user: "bob", admin: true },
+			{ user: "admin", admin: true },
+		];
+		fake = await createFakeHost({
+			decisionResults: [
+				(_request: unknown, opts: unknown) => {
+					// Core's effective-settings rule: an unknown named user resolves
+					// to the earliest-created admin, never to a missing-user error.
+					const user = (opts as { user?: string }).user;
+					expect(user).toBe("removed-owner");
+					const resolved = directory.some((entry) => entry.user === user)
+						? user
+						: directory[0]!.user;
+					return {
+						...OK_RESULT,
+						model: resolved === "bob" ? "acme/bob-decision-default" : "acme/other-default",
+					};
+				},
+			],
+		});
+		const judge = decisionsJudge(fake.host, defaultSettings(), new Cooldown(), "removed-owner")!;
+		const result = await judge.evaluate(REQUEST);
+		expect(result.model).toBe("acme/bob-decision-default");
+	});
+
+	it("a job run passes its owner", async () => {
+		fake = await createFakeHost({
+			owner: "removed-meta-owner",
+			activeRun: { jobId: "ext:acme:cleanup", owner: "job-owner" },
+			entries: [userEntry("research the dryer")],
+			hookResults: [{ status: "absent" }],
+			decisionResults: [
+				{
+					...OK_RESULT,
+					answers: { irreversible: { type: "noul", noul: 0.05 } },
+				},
+				{
+					...OK_RESULT,
+					answers: { security_risk: { type: "noul", noul: 0.05 } },
+				},
+			],
+		});
+		const factory = createWarden(fake.host);
+		const registration = factory.extension?.hooks?.[0]?.handlers as {
+			beforeTool(call: ToolHookCall, api: HookApi, context: ChordContext): Promise<unknown>;
+			afterTool(
+				call: ToolHookCall,
+				result: ToolExecutionResult,
+				api: HookApi,
+				context: ChordContext,
+			): Promise<unknown>;
+		};
+		const call = {
+			type: "toolCall",
+			id: "call-1",
+			name: "acme-search/search_json",
+			arguments: { query: "dryer repair" },
+		} as ToolHookCall;
+		const api = { conversationId: 1 } as HookApi;
+		const context = {} as ChordContext;
+		await registration.beforeTool(call, api, context);
+		await registration.afterTool(
+			call,
+			{ output: [{ type: "text", text: "search results" }] },
+			api,
+			context,
+		);
+		expect(fake.decisionCalls).toHaveLength(2);
+		expect(fake.decisionCalls.map((entry) => (entry.opts as { user?: string }).user)).toEqual([
+			"job-owner",
+			"job-owner",
+		]);
+	});
+
+	it("a failed afterTool presence lookup only degrades the judge's user", async () => {
+		fake = await createFakeHost({
+			metaError: new Error("directory unavailable"),
+			decisionResults: [
+				{
+					...OK_RESULT,
+					answers: { security_risk: { type: "noul", noul: 0.05 } },
+				},
+			],
+		});
+		const factory = createWarden(fake.host);
+		const registration = factory.extension?.hooks?.[0]?.handlers as {
+			afterTool(
+				call: ToolHookCall,
+				result: ToolExecutionResult,
+				api: HookApi,
+				context: ChordContext,
+			): Promise<ToolExecutionResult | undefined>;
+		};
+		const call = {
+			type: "toolCall",
+			id: "call-2",
+			name: "acme-search/search_json",
+			arguments: { query: "dryer repair" },
+		} as ToolHookCall;
+		const secret = "sk-acme-1234567890abcdef";
+		const replaced = await registration.afterTool(
+			call,
+			{ output: [{ type: "text", text: `connected with ${secret}` }] },
+			{ conversationId: 1 } as HookApi,
+			{} as ChordContext,
+		);
+		expect(JSON.stringify(replaced?.output)).toContain("[redacted]");
+		expect(JSON.stringify(replaced?.output)).not.toContain(secret);
+		expect(fake.decisionCalls).toHaveLength(1);
+		expect((fake.decisionCalls[0]!.opts as { user?: string }).user).toBeUndefined();
 	});
 
 	it("judge.enabled false → no decision request is ever made", async () => {

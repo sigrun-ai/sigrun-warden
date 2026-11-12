@@ -130,6 +130,7 @@ export const WARDEN_SETTINGS_SCHEMA = asJsonSchema(Type.Object({
         description: "The `provider/model` the judge calls. Absent: the core decisions model.",
         minLength: 1,
         "x-sigrun-apply": "live",
+        "x-sigrun-model": "decision",
     })),
     thresholds: Type.Object({
         clearAsk: threshold("Clear ask", "At or above this score a clearly-named live call runs without asking the person.", DEFAULTS.thresholds.clearAsk),
@@ -158,6 +159,7 @@ export const WARDEN_SETTINGS_SCHEMA = asJsonSchema(Type.Object({
         description: "The `provider/model` used to build skill cards. Absent: core's utility role.",
         minLength: 1,
         "x-sigrun-apply": "live",
+        "x-sigrun-model": "chat",
     })),
     steerBudget: Type.Number({
         title: "Steer budget",

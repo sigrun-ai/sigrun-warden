@@ -74,14 +74,14 @@ check(typeof manifest.homepage === "string", "package.json: homepage absent");
  * is pi-ai's own exact dependency (1.3.27), i.e. the host-linked single
  * copy. */
 const HOST_MODULE_PINS = {
-	"@sigrun/sigrun": ">=0.13.0",
+	"@sigrun/sigrun": ">=0.15.0",
 	"@earendil-works/pi-durable": "~1.5.0",
 	"@earendil-works/pi-ai": "~1.5.0",
 	"@earendil-works/chord": "~1.5.0",
 	typebox: "1.3.27",
 	// The core lines the warden runs against; it takes no runtime value
 	// imports from shared (types only), so each core line is accepted.
-	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0 || 0.12.0 || 0.13.0",
+	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0 || 0.12.0 || 0.13.0 || 0.14.0 || 0.15.0",
 };
 /** Development happens against pi-durable 1.5.0 (exact). */
 const DEV_PIN_OVERRIDES = {

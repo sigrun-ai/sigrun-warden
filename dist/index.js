@@ -42,7 +42,7 @@ export default function createWarden(host, deps = {}) {
             const classification = await classify({ name: call.name, arguments: call.arguments }, { annotations, settings });
             const presence = await presenceOf(host, api.conversationId);
             const run = await runInfo(host, api.conversationId);
-            const judge = decisionsJudge(host, settings, cooldown);
+            const judge = decisionsJudge(host, settings, cooldown, "owner" in presence ? presence.owner : undefined);
             return await routeOffline({
                 host,
                 call,
@@ -107,6 +107,15 @@ export default function createWarden(host, deps = {}) {
         // A thrown guard must never drop the tool's result.
         try {
             const settings = await settingsHandle.get();
+            let user;
+            try {
+                const presence = await presenceOf(host, api.conversationId);
+                user = "owner" in presence ? presence.owner : undefined;
+            }
+            catch {
+                // A presence failure only loses the judge's per-user default;
+                // masking, taint, and stuck checks must still run.
+            }
             const run = await runInfo(host, api.conversationId);
             return await afterToolGuard(call, result, {
                 host,
@@ -115,7 +124,7 @@ export default function createWarden(host, deps = {}) {
                 settings,
                 store,
                 log,
-                judge: decisionsJudge(host, settings, cooldown),
+                judge: decisionsJudge(host, settings, cooldown, user),
                 context: _context,
             });
         }
@@ -125,6 +134,7 @@ export default function createWarden(host, deps = {}) {
         }
     };
     return {
+        title: "Warden",
         extension: defineExtension({
             name: "sigrun.warden",
             tools: [],
