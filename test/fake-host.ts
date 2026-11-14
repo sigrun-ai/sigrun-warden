@@ -93,7 +93,8 @@ export function toolResultEntry(
 	};
 }
 
-/** A pi.assistant entry carrying one tool call (the args half of a result pair). */
+/** A pi.assistant entry carrying one tool call (the args half of a result pair),
+ *  in pi-ai's real message shape: a `toolCall` block in `content`. */
 export function toolCallEntry(
 	toolName: string,
 	args: Record<string, unknown>,
@@ -111,7 +112,7 @@ export function toolCallEntry(
 		model: [
 			{
 				role: "assistant",
-				toolCalls: [{ id: callId, name: toolName, arguments: args }],
+				content: [{ type: "toolCall", id: callId, name: toolName, arguments: args }],
 			},
 		],
 	};
