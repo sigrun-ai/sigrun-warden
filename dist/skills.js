@@ -46,17 +46,22 @@ function entryText(entry) {
     }
     return parts.join("\n");
 }
-/** Tool calls one entry carries (assistant messages' toolCalls). */
+/** Tool calls one entry carries: pi-ai assistant messages hold them as
+ *  `{type: "toolCall", id, name, arguments}` blocks in `content`. */
 function entryToolCalls(entry) {
     const calls = [];
     for (const message of entry.model ?? []) {
-        const list = message.toolCalls;
+        if (message.role !== "assistant")
+            continue;
+        const list = message.content;
         if (!Array.isArray(list))
             continue;
         for (const raw of list) {
             if (typeof raw !== "object" || raw === null)
                 continue;
             const call = raw;
+            if (call.type !== "toolCall")
+                continue;
             if (typeof call.id !== "string" || typeof call.name !== "string")
                 continue;
             calls.push({

@@ -70,15 +70,18 @@ interface ToolCallRef {
 	args: Record<string, unknown>;
 }
 
-/** Tool calls one entry carries (assistant messages' toolCalls). */
+/** Tool calls one entry carries: pi-ai assistant messages hold them as
+ *  `{type: "toolCall", id, name, arguments}` blocks in `content`. */
 function entryToolCalls(entry: EntryRecord): ToolCallRef[] {
 	const calls: ToolCallRef[] = [];
 	for (const message of entry.model ?? []) {
-		const list = (message as { toolCalls?: unknown }).toolCalls;
+		if ((message as { role?: unknown }).role !== "assistant") continue;
+		const list = (message as { content?: unknown }).content;
 		if (!Array.isArray(list)) continue;
 		for (const raw of list) {
 			if (typeof raw !== "object" || raw === null) continue;
-			const call = raw as { id?: unknown; name?: unknown; arguments?: unknown };
+			const call = raw as { type?: unknown; id?: unknown; name?: unknown; arguments?: unknown };
+			if (call.type !== "toolCall") continue;
 			if (typeof call.id !== "string" || typeof call.name !== "string") continue;
 			calls.push({
 				id: call.id,

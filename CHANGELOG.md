@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Clearances now reach the card check. The skills-in-run scan read tool
+  calls from a `toolCalls` field pi-ai messages never carry (calls are
+  `toolCall` blocks in `content`), so it found no `load_skill` or SKILL.md
+  read, and every cleared job call blocked with "no skill card covers".
+  `/warden card --rebuild` was broken the same way.
+- No card from a cut-off skill body: a `load_skill` result the recall
+  extension externalized is only its head, and a card built from partial
+  rules can allow what the full skill forbids. Such a body builds no card,
+  and a card an older warden stored for it no longer governs.
+
 ## [0.2.0] - 2026-11-12
 
 ### Fixed

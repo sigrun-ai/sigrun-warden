@@ -156,4 +156,21 @@ describe("buildCard", () => {
 		expect(input.systemPrompt).toBe(CARD_SYSTEM_PROMPT);
 		expect(input.prompt).toContain(BODY);
 	});
+
+	it("a body cut off by recall builds no card and ignores a stored one", async () => {
+		fake = await createFakeHost();
+		const cut = skill(
+			`${BODY}\n\n\n[recall: full result stored as a:0123456789abcdef, 40000 bytes. Outline:]\n- Workflow (offset 8675)\nRead more with recall_open("a:0123456789abcdef", {offset}).`,
+		);
+		// A card an older warden stored for this cut-off body must not govern.
+		await new CardStore(fake.host.stores.paths.data).put({
+			hash: cut.hash,
+			skill: cut.name,
+			builtAt: new Date().toISOString(),
+			model: "acme/utility-1",
+			text: "## torrents_remove\n…",
+		});
+		expect(await buildCard(fake.host, cut, defaultSettings())).toBeUndefined();
+		expect(fake.modelCalls).toHaveLength(0);
+	});
 });

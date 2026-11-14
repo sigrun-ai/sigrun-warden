@@ -8,6 +8,8 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 export const CARD_MAX_BYTES = 8192;
 export const CARD_TIMEOUT_MS = 60_000;
+/** The line @sigrun/recall puts after the head of an externalized tool result. */
+const RECALL_CUT_MARKER = "\n[recall: full result stored as ";
 /** The system prompt for one card build: quote the skill, invent nothing. */
 export const CARD_SYSTEM_PROMPT = `You are writing a rule card for one skill, from the skill text alone.
 
@@ -96,6 +98,11 @@ export function buildCard(host, skill, settings) {
     return build;
 }
 async function buildCardUncached(host, skill, settings) {
+    // A body the recall extension externalized is only its head: a card
+    // built from partial rules can allow what the full skill forbids, so
+    // it never governs — not even one an older warden stored.
+    if (skill.body.includes(RECALL_CUT_MARKER))
+        return undefined;
     // Store first: a card already built for this body is returned
     // without a model call.
     const store = new CardStore(host.stores.paths.data);
