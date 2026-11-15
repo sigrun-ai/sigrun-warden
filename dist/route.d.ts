@@ -13,7 +13,7 @@ import type { Classification } from "./classify.js";
 import type { Presence, RunInfo } from "./context.js";
 import type { StateStore } from "./state.js";
 import type { HoldLog } from "./log.js";
-import type { WardenSettings } from "./settings-schema.js";
+import type { Clearance, WardenSettings } from "./settings-schema.js";
 import type { Judge } from "pi-typesafe";
 import { Cooldown } from "./judge.js";
 export interface RouteInput {
@@ -24,6 +24,7 @@ export interface RouteInput {
     presence: Presence;
     run: RunInfo;
     settings: WardenSettings;
+    readonly ownerClearances: readonly Clearance[];
     store: StateStore;
     log: HoldLog;
     /** The hook's own chord context (the interaction poll cancels with it). */
@@ -43,6 +44,12 @@ export interface RouteInput {
 export declare function routeOffline(input: RouteInput): Promise<{
     block?: string;
 } | undefined>;
+/**
+ * The job's effective clearances: every system entry, plus only its
+ * owner's entries for this job. A user's entry for someone else's job
+ * never reaches this input (beforeTool reads just the effective owner).
+ */
+export declare function clearancesFor(system: readonly Clearance[], ownerClearances: readonly Clearance[], jobId: string): readonly Clearance[];
 export interface AfterGrantContext {
     host: SigrunHost;
     call: ToolHookCall;

@@ -83,7 +83,7 @@ load-time warning; the form itself refuses one. `retentionDays` is the one
     { "match": "tool", "pattern": "acme-media/torrents_*", "level": "deny" },
     { "match": "path", "pattern": "secrets/*", "level": "warn" }
   ],
-  "cardModel": "provider/model",              // optional; default: core's utility role
+  "cardModel": "provider/model",              // optional; skill-card builder, default: core's utility role
   "steerBudget": 3,                           // steers per run before the warden asks the person itself
   "retentionDays": { "calls": 90, "holds": 365 }
 }
@@ -92,6 +92,13 @@ load-time warning; the form itself refuses one. `retentionDays` is the one
 Rule patterns are anchored `*`-only globs; `*` matches any run within a
 segment (`?` and `**` are literal). `command` matches the raw command
 string, `tool` the tool name, `path` any string argument.
+
+Each directory user also has **My Settings → Warden → Clearances**, with the
+same job-and-tools entries in `user-settings/<user>/sigrun-warden.json`. A
+job's clearances are its matching system entries plus its effective owner's
+matching personal entries; only the effective owner's file is read. An entry
+naming somebody else's job is inert, and system entries keep working. Both
+system and personal clearances are live settings.
 
 ## Cards
 

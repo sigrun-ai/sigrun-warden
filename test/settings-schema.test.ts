@@ -13,6 +13,7 @@ import type { Principal, SigrunExtensionResult } from "@sigrun/sigrun/extension"
 import createWarden from "../src/index.js";
 import {
 	WARDEN_SETTINGS_SCHEMA,
+	WARDEN_USER_SCHEMA,
 	defaultSettings,
 	type WardenSettings,
 } from "../src/settings-schema.js";
@@ -77,9 +78,56 @@ describe("warden settings schema", () => {
 		assertDrawable(WARDEN_SETTINGS_SCHEMA);
 	});
 
-	it("the factory declares the shared schema and no user schema", async () => {
+	it("the factory declares the shared schema and the user's clearances", async () => {
 		const { fake } = await declared();
-		expect(fake.declaration).toEqual({ schema: WARDEN_SETTINGS_SCHEMA });
+		expect(fake.declaration).toEqual({
+			schema: WARDEN_SETTINGS_SCHEMA,
+			userSchema: WARDEN_USER_SCHEMA,
+		});
+	});
+
+	it("system and user clearances declare job and tool pickers", () => {
+		for (const schema of [WARDEN_SETTINGS_SCHEMA, WARDEN_USER_SCHEMA]) {
+			const clearanceList = schema.properties.clearances;
+			const item = clearanceList.items as unknown as {
+				properties: Record<string, Record<string, unknown>>;
+			};
+			expect(item.properties.job?.["x-sigrun-job"]).toBe(true);
+			expect((item.properties.tools as { items: Record<string, unknown> }).items["x-sigrun-tool"]).toBe(true);
+		}
+	});
+
+	it("cardModel is labelled as the skill card model", () => {
+		const cardModel = WARDEN_SETTINGS_SCHEMA.properties.cardModel;
+		expect(cardModel).toMatchObject({
+			title: "Skill card model",
+			description: "The `provider/model` that condenses a job's skill into a skill card — when each destructive tool may run, what evidence it needs, when to escalate. Cleared job calls are checked against these cards. Absent: core's utility role.",
+		});
+	});
+
+	it("the user page offers only live clearances", () => {
+		const clearances = WARDEN_USER_SCHEMA.properties.clearances;
+		expect(clearances).toMatchObject({
+			title: "Clearances",
+			description: "Your jobs allowed to run the listed tools autonomously, each only after its card check passes.",
+			default: [],
+			"x-sigrun-apply": "live",
+		});
+	});
+
+	it("per-user settings are checked by user and default to no clearances", async () => {
+		const fake = await createFakeHost({
+			userSettings: {
+				alice: { clearances: [{ job: "ext:acme:cleanup", tools: ["acme-media/torrents_remove"] }] },
+			},
+		});
+		fakes.push(fake);
+		createWarden(fake.host);
+		expect(await fake.readUserClearances("nobody")).toEqual([]);
+		expect(await fake.readUserClearances("alice")).toEqual([
+			{ job: "ext:acme:cleanup", tools: ["acme-media/torrents_remove"] },
+		]);
+		expect(fake.userSettingsReads).toEqual(["nobody", "alice"]);
 	});
 
 	it("defaults match the old parser", async () => {

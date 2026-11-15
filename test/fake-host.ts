@@ -7,6 +7,7 @@ import type {
 	SettingsDeclaration,
 	SigrunHost,
 } from "@sigrun/sigrun/extension";
+import type { Clearance } from "../src/settings-schema.js";
 import type { ConversationId, EntryId } from "@earendil-works/pi-durable";
 import type { InteractionRecord } from "@sigrun/shared/interactions";
 
@@ -143,6 +144,8 @@ export interface FakeHostOptions {
 	complete?: (input: unknown) => Promise<{ text: string; model: string }>;
 	/** The stored `settings/<slug>.json` document (absent → `{}`, i.e. all defaults). */
 	settings?: Record<string, unknown>;
+	/** Per-user settings documents, keyed by directory user. */
+	userSettings?: Record<string, Record<string, unknown>>;
 }
 
 export interface FakeInteractionCalls {
@@ -179,10 +182,14 @@ export interface FakeHost {
 	readonly decisionCalls: readonly { request: unknown; opts: unknown }[];
 	/** Every `models.complete` input, in order. */
 	readonly modelCalls: readonly unknown[];
+	/** Every per-user settings read, in order. */
+	readonly userSettingsReads: readonly string[];
 	/** The declaration the warden factory passed to `settings.declare`. */
 	readonly declaration: SettingsDeclaration | undefined;
 	/** The checked read through THAT declaration (defaults applied, repairs). */
 	readSettings(): Promise<Record<string, unknown>>;
+	/** The checked per-user clearance list. */
+	readUserClearances(user: string): Promise<readonly Clearance[]>;
 	/** Append more `decisions.evaluate` results to the queue. */
 	pushDecisionResults(...results: unknown[]): void;
 	cleanup(): Promise<void>;
@@ -214,6 +221,7 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 	const decisionCalls: { request: unknown; opts: unknown }[] = [];
 	const decisionResults = [...(options.decisionResults ?? [])];
 	const modelCalls: unknown[] = [];
+	const userSettingsReads: string[] = [];
 	// The stored settings document: raw reads see it as written, the declared
 	// handle checks it (defaults applied, malformed values repaired).
 	let settingsDoc: Record<string, unknown> = options.settings ?? {};
@@ -280,12 +288,27 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 				decl: SettingsDeclaration,
 			): DeclaredSettings<S, U> => {
 				declaration.current = decl;
+				const read = async (
+					schema: SettingsDeclaration["schema"],
+					value: Record<string, unknown>,
+				) => checkStoredSettings(schema, value).value;
 				const handle = {
-					get: async () =>
-						checkStoredSettings(decl.schema, settingsDoc).value as S,
-					user: (): { get(): Promise<U> } => {
-						throw new Error("the warden declares no per-user settings schema");
-					},
+					get: async () => (await read(decl.schema, settingsDoc)) as S,
+					// Warden declares no overridable system leaves: the checked
+					// system document is the effective document.
+					effective: async () => (await read(decl.schema, { ...settingsDoc })) as S,
+					user: (user: string) => ({
+						get: async () => {
+							if (decl.userSchema === undefined) {
+								throw new Error("settings.userSchema is not declared");
+							}
+							userSettingsReads.push(user);
+							return (await read(
+								decl.userSchema,
+								{ ...options.userSettings?.[user] },
+							)) as U;
+						},
+					}),
 				};
 				declaration.handle = handle as DeclaredSettings<
 					Record<string, unknown>,
@@ -494,6 +517,7 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 		entriesQueries,
 		decisionCalls,
 		modelCalls,
+		userSettingsReads,
 		get declaration() {
 			return declaration.current;
 		},
@@ -502,6 +526,13 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 				throw new Error("the factory declared no settings schema");
 			}
 			return declaration.handle.get();
+		},
+		async readUserClearances(user: string): Promise<readonly Clearance[]> {
+			if (declaration.handle === undefined) {
+				throw new Error("the factory declared no settings schema");
+			}
+			const value = await declaration.handle.user(user).get();
+			return (value as {clearances?: Clearance[]}).clearances ?? [];
 		},
 		pushDecisionResults(...results: unknown[]) {
 			decisionResults.push(...results);

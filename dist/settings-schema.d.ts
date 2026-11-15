@@ -14,8 +14,27 @@
  * core's slug-mismatch gate names that bug. Every read is per tool call, so
  * each property is `live` — except `retentionDays`: the hold log prunes once
  * per process (`startPruneOnce`), so a new window lands at the next boot.
+ * Each job clearance read also checks the job owner's separate per-user list.
  */
 import { Type, type Static } from "typebox";
+/**
+ * One clearance: a job that may run the listed tools autonomously, each
+ * call only after its per-target card check passes. The old parser dropped
+ * an entry without a string `job` and a list of strings `tools`.
+ */
+export declare const CLEARANCE_SCHEMA: Type.TObject<{
+    job: Type.TString;
+    tools: Type.TArray<Type.TString>;
+}>;
+export type Clearance = Static<typeof CLEARANCE_SCHEMA>;
+/** A user's personal clearances (My Settings → Warden). */
+export declare const WARDEN_USER_SCHEMA: Type.TObject<{
+    clearances: Type.TArray<Type.TObject<{
+        job: Type.TString;
+        tools: Type.TArray<Type.TString>;
+    }>>;
+}> & Readonly<Record<string, unknown>>;
+export type WardenUserSettings = Static<typeof WARDEN_USER_SCHEMA>;
 export declare const WARDEN_SETTINGS_SCHEMA: Type.TObject<{
     judge: Type.TObject<{
         enabled: Type.TBoolean;

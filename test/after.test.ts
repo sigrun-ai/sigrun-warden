@@ -227,6 +227,7 @@ describe("afterTool guards", () => {
 			presence: { kind: "live" },
 			run: env.run,
 			settings: defaultSettings(),
+			ownerClearances: [],
 			store: env.store,
 			log: env.log,
 			context: env.context,
@@ -267,6 +268,7 @@ describe("afterTool guards", () => {
 				settings,
 				store,
 				log,
+				ownerClearances: [],
 				context: liveContext(),
 				judge: fakeJudge({}),
 			});

@@ -216,6 +216,14 @@ async function finishAnswer(input, fp, nonce, logBase, outcome) {
     return { block: `Held ${call.name} denied: ${reason}` };
 }
 /**
+ * The job's effective clearances: every system entry, plus only its
+ * owner's entries for this job. A user's entry for someone else's job
+ * never reaches this input (beforeTool reads just the effective owner).
+ */
+export function clearancesFor(system, ownerClearances, jobId) {
+    return [...system, ...ownerClearances.filter((entry) => entry.job === jobId)];
+}
+/**
  * The job-presence slice. Everything that decides allow/block runs
  * inside ONE store.update so parallel identical calls serialize.
  */
@@ -344,7 +352,7 @@ async function jobRoute(input, fp, key, reasons, logBase) {
     // but only after the per-target card check. The clearance is a
     // settings entry (`{job, tools}`) — never a skill. Everything else
     // keeps the Task 11 block + escalate path below.
-    const cleared = input.settings.clearances.some((clearance) => clearance.job === presence.jobId && clearance.tools.includes(call.name));
+    const cleared = clearancesFor(input.settings.clearances, input.ownerClearances, presence.jobId).some((clearance) => clearance.job === presence.jobId && clearance.tools.includes(call.name));
     if (cleared) {
         // The card-check path does not use the grant reservation: release
         // the placeholder slot before judging.

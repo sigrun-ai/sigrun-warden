@@ -14,6 +14,7 @@
  * core's slug-mismatch gate names that bug. Every read is per tool call, so
  * each property is `live` — except `retentionDays`: the hold log prunes once
  * per process (`startPruneOnce`), so a new window lands at the next boot.
+ * Each job clearance read also checks the job owner's separate per-user list.
  */
 
 import { Type, type Static } from "typebox";
@@ -76,17 +77,19 @@ const RULE_SCHEMA = Type.Object(
  * call only after its per-target card check passes. The old parser dropped
  * an entry without a string `job` and a list of strings `tools`.
  */
-const CLEARANCE_SCHEMA = Type.Object(
+export const CLEARANCE_SCHEMA = Type.Object(
 	{
 		job: Type.String({
 			title: "Job",
 			description: "The job's id (`ext:<extension>:<job>`) or a fire's id.",
+			"x-sigrun-job": true,
 			"x-sigrun-apply": "live",
 		}),
 		tools: Type.Array(
 			Type.String({
 				title: "Tool",
 				description: "A tool name, e.g. `acme-media/torrents_remove`.",
+				"x-sigrun-tool": true,
 			}),
 			{
 				title: "Tools",
@@ -102,6 +105,23 @@ const CLEARANCE_SCHEMA = Type.Object(
 		"x-sigrun-summary": ["job", "tools"],
 	},
 );
+
+export type Clearance = Static<typeof CLEARANCE_SCHEMA>;
+
+/** A user's personal clearances (My Settings → Warden). */
+export const WARDEN_USER_SCHEMA = asJsonSchema(
+	Type.Object({
+		clearances: Type.Array(CLEARANCE_SCHEMA, {
+			title: "Clearances",
+			description:
+				"Your jobs allowed to run the listed tools autonomously, each only after its card check passes.",
+			default: [],
+			"x-sigrun-apply": "live",
+		}),
+	}),
+);
+
+export type WardenUserSettings = Static<typeof WARDEN_USER_SCHEMA>;
 
 /** A threshold: a judgment score in 0..1, both ends inclusive (the old parser's bound). */
 function threshold(title: string, description: string, defaultValue: number) {
@@ -205,9 +225,9 @@ export const WARDEN_SETTINGS_SCHEMA = asJsonSchema(
 		}),
 		cardModel: Type.Optional(
 			Type.String({
-				title: "Card model",
+				title: "Skill card model",
 				description:
-					"The `provider/model` used to build skill cards. Absent: core's utility role.",
+					"The `provider/model` that condenses a job's skill into a skill card — when each destructive tool may run, what evidence it needs, when to escalate. Cleared job calls are checked against these cards. Absent: core's utility role.",
 				minLength: 1,
 				"x-sigrun-apply": "live",
 				"x-sigrun-model": "chat",
