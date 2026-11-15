@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   card condensation and the per-call card check. Requires sigrun 0.18.0 or
   newer; the shared peer includes 0.18.0.
 
+## [0.2.2] - 2026-11-15
+
+- Per-user clearances: a job's effective clearances are the system list's
+  entries for it plus its owner's own entries (only the job owner's file
+  is ever read; another user's entry is inert). The job/tool fields carry
+  the `x-sigrun-job`/`x-sigrun-tool` picker keywords (the dropdown rosters
+  land with core 0.19.x's picker emission — the keywords are schema
+  facts today). The card-model field is relabelled "Skill card model".
+  The shared peer gains the 0.19.1 line and the core floor rises to
+  >=0.19.1 (the 0.19.0 tag was cut against an uncommitted tree and never
+  published).
+
 ## [0.2.1] - 2026-11-14
 
 ### Fixed
