@@ -87,6 +87,26 @@ describe("skillsInRun", () => {
 		expect(hashes).toEqual([HASH, sha(edited)].sort());
 	});
 
+	it("a skill block in a sigrun.user input is collected", () => {
+		const prompt = `Please run the cleanup.\n<skill name="acme-cleanup" location="/home/alice/skills/acme-cleanup/SKILL.md">\n${BODY}\n</skill>`;
+		const entry = {
+			id: 1,
+			conversationId: 0,
+			kind: "sigrun.user",
+			data: { attachments: [] },
+			model: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+		};
+		const seen = skillsInRun([entry as unknown as EntryRecord]);
+		expect(seen).toEqual<SkillSeen[]>([
+			{
+				name: "acme-cleanup",
+				location: "/home/alice/skills/acme-cleanup/SKILL.md",
+				body: BODY,
+				hash: HASH,
+			},
+		]);
+	});
+
 	it("a load_skill result is collected with its name", () => {
 		const call = toolCallEntry("load_skill", { skill: "acme-cleanup" });
 		const result = toolResultEntry("load_skill", BODY);

@@ -15,6 +15,7 @@ import {
 	stripDataText,
 } from "pi-warden";
 import type { Judge } from "pi-typesafe";
+import { isUserInput, typedText } from "@sigrun/shared/turns";
 import type { EntryRecord } from "@earendil-works/pi-durable";
 
 import type { Classification } from "./classify.js";
@@ -73,7 +74,7 @@ function replyText(entry: EntryRecord): string {
 }
 
 /**
- * A reply entry is a person's input entry (`pi.user`, this run or a
+ * A reply entry is any user-input kind (this run or a
  * later one — a later person's message IS this run's start, so the run
  * window covers both) or a tool result of a tool named
  * `ask_user_question`. Only entries AFTER the block (the blocked
@@ -97,8 +98,8 @@ function findReply(
 		) {
 			continue;
 		}
-		if (entry.kind === "pi.user") {
-			return { id: String(entry.id), text: replyText(entry) };
+		if (isUserInput(entry)) {
+			return { id: String(entry.id), text: typedText(entry) };
 		}
 		if (entry.kind === "pi.tool-result") {
 			const message = (entry.model ?? [])[0] as { toolName?: unknown } | undefined;

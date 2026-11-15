@@ -1,7 +1,3 @@
-/**
- * Where the tool call is happening (warden spec §3.2 presence classes):
- * an internal curator run, a scheduled job run, or a live conversation.
- */
 import type { SigrunHost } from "@sigrun/sigrun/extension";
 import type { ConversationId, EntryId } from "@earendil-works/pi-durable";
 import type { EntryRecord } from "@earendil-works/pi-durable";

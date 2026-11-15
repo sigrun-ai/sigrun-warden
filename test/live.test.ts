@@ -278,6 +278,51 @@ describe("evaluateLive: approval on reply", () => {
 		).toBe(true);
 	});
 
+	it("reads a sigrun.user reply's typed text and omits its attachment markers", async () => {
+		env = await liveEnv({
+			owner: "alice",
+			entries: [userEntry("tidy up my downloads")],
+			decisionResults: [CLEAR_NO, APPROVE_OK],
+		});
+		expect((await evaluateLive(env.input())).action).toBe("steer");
+		const request = userEntry("tidy up my downloads");
+		const reply = {
+			id: 7,
+			conversationId: 0,
+			kind: "sigrun.user",
+			data: {
+				attachments: [
+					{
+						path: "/conversation/approval.txt",
+						name: "approval.txt",
+						mime: "text/plain",
+						bytes: 12,
+						delivery: "inline",
+						parts: [0],
+					},
+				],
+			},
+			model: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "[Attachment: approval.txt]\nno wait, this is not approval" },
+						{ type: "text", text: "yes, those are the right torrents" },
+					],
+				},
+			],
+		};
+		const run2 = await runInfoFor(env, [request, reply]);
+		const second = await evaluateLive(env.input({ run: run2 }));
+		expect(second).toEqual({ action: "run" });
+		const approval = env.fake.decisionCalls[1]!.request as {
+			state: { task: string };
+		};
+		expect(approval.state.task).toBe("yes, those are the right torrents");
+		expect(approval.state.task).not.toContain("Attachment: approval.txt");
+		expect(approval.state.task).not.toContain("no wait, this is not approval");
+	});
+
 	it("one approving reply releases exactly one execution; an identical second call with no newer reply is held", async () => {
 		env = await liveEnv({
 			owner: "alice",

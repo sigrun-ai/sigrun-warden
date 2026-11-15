@@ -7,6 +7,7 @@
  * body, newest first (the most recent copy governs).
  */
 import { createHash } from "node:crypto";
+import { isUserInput } from "@sigrun/shared/turns";
 import type { EntryRecord } from "@earendil-works/pi-durable";
 
 export interface SkillSeen {
@@ -171,7 +172,7 @@ export function skillsInRun(entries: readonly EntryRecord[]): SkillSeen[] {
 		// Channel 1: <skill> blocks in expanded user/job prompts. One
 		// scan consumes every block, so two same-named blocks each hash
 		// their own body.
-		if (entry.kind === "pi.user" || entry.kind === "sigrun.user.expanded") {
+		if (isUserInput(entry)) {
 			const text = entryText(entry);
 			for (const block of skillBlocksInText(text)) {
 				collect(
