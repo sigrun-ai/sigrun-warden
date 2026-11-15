@@ -77,6 +77,7 @@ async function route(env: Env, call: ToolHookCall) {
 		settings: defaultSettings(),
 		store: env.store,
 		log: env.log,
+		ownerClearances: [],
 		context: liveContext(),
 	});
 }
@@ -362,6 +363,7 @@ describe("job presence: no escalation provider", () => {
 			settings,
 			store: env.store,
 			log: env.log,
+			ownerClearances: [],
 			context: liveContext(),
 		});
 		expect(result?.block).toContain("no decision model available");

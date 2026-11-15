@@ -8,7 +8,7 @@ import { presenceOf, runInfo } from "./context.js";
 import { Cooldown, decisionsJudge } from "./judge.js";
 import { HoldLog } from "./log.js";
 import { resolveReservedGrant, routeOffline, startPruneOnce, } from "./route.js";
-import { WARDEN_SETTINGS_SCHEMA } from "./settings-schema.js";
+import { WARDEN_SETTINGS_SCHEMA, WARDEN_USER_SCHEMA, } from "./settings-schema.js";
 import { StateStore } from "./state.js";
 import { toolExecuted } from "./tool-executed.js";
 /**
@@ -27,6 +27,7 @@ export default function createWarden(host, deps = {}) {
     // (`warden`), not the declared name's (`sigrun-warden`).
     const settingsHandle = host.settings.declare({
         schema: WARDEN_SETTINGS_SCHEMA,
+        userSchema: WARDEN_USER_SCHEMA,
     });
     const log = new HoldLog(`${host.stores.paths.state}/holds.jsonl`, () => new Date());
     const store = new StateStore(host.stores.paths.state);
@@ -41,6 +42,9 @@ export default function createWarden(host, deps = {}) {
             const annotations = async (tool) => annotationFromHookResult(tool, (await host.publishedHooks.call("mcp.tool-annotations", { tool }, { conversationId: api.conversationId })));
             const classification = await classify({ name: call.name, arguments: call.arguments }, { annotations, settings });
             const presence = await presenceOf(host, api.conversationId);
+            const ownerClearances = presence.kind === "job" && presence.owner !== undefined
+                ? (await settingsHandle.user(presence.owner).get()).clearances
+                : [];
             const run = await runInfo(host, api.conversationId);
             const judge = decisionsJudge(host, settings, cooldown, "owner" in presence ? presence.owner : undefined);
             return await routeOffline({
@@ -51,6 +55,7 @@ export default function createWarden(host, deps = {}) {
                 presence,
                 run,
                 settings,
+                ownerClearances,
                 store,
                 log,
                 context,
@@ -196,7 +201,7 @@ function bodyHash(body) {
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
 }
-export { WARDEN_SETTINGS_SCHEMA, defaultSettings } from "./settings-schema.js";
+export { WARDEN_SETTINGS_SCHEMA, WARDEN_USER_SCHEMA, defaultSettings, } from "./settings-schema.js";
 export { classify, annotationFromHookResult } from "./classify.js";
 export { HoldLog } from "./log.js";
 export { globToRegExp, matchGlob } from "./glob.js";

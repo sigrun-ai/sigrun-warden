@@ -25,7 +25,7 @@ import { callFingerprint, grantKey } from "./state.js";
 import { targetsOf } from "./targets.js";
 import type { StateStore } from "./state.js";
 import type { HoldLog } from "./log.js";
-import type { WardenSettings } from "./settings-schema.js";
+import type { Clearance, WardenSettings } from "./settings-schema.js";
 import type { Judge } from "pi-typesafe";
 import { Cooldown } from "./judge.js";
 import { evaluateLive, judgeUnknown } from "./live.js";
@@ -41,6 +41,7 @@ export interface RouteInput {
 	presence: Presence;
 	run: RunInfo;
 	settings: WardenSettings;
+	readonly ownerClearances: readonly Clearance[];
 	store: StateStore;
 	log: HoldLog;
 	/** The hook's own chord context (the interaction poll cancels with it). */
@@ -292,6 +293,19 @@ async function finishAnswer(
 }
 
 /**
+ * The job's effective clearances: every system entry, plus only its
+ * owner's entries for this job. A user's entry for someone else's job
+ * never reaches this input (beforeTool reads just the effective owner).
+ */
+export function clearancesFor(
+	system: readonly Clearance[],
+	ownerClearances: readonly Clearance[],
+	jobId: string,
+): readonly Clearance[] {
+	return [...system, ...ownerClearances.filter((entry) => entry.job === jobId)];
+}
+
+/**
  * The job-presence slice. Everything that decides allow/block runs
  * inside ONE store.update so parallel identical calls serialize.
  */
@@ -437,7 +451,11 @@ async function jobRoute(
 	// but only after the per-target card check. The clearance is a
 	// settings entry (`{job, tools}`) — never a skill. Everything else
 	// keeps the Task 11 block + escalate path below.
-	const cleared = input.settings.clearances.some(
+	const cleared = clearancesFor(
+		input.settings.clearances,
+		input.ownerClearances,
+		presence.jobId,
+	).some(
 		(clearance) =>
 			clearance.job === presence.jobId && clearance.tools.includes(call.name),
 	);

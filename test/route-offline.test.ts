@@ -69,6 +69,7 @@ describe("routeOffline: live presence", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		});
 		expect(result).toBeUndefined();
@@ -96,6 +97,7 @@ describe("routeOffline: live presence", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		});
 		expect(result?.block).toContain("not those torrents");
@@ -117,6 +119,7 @@ describe("routeOffline: live presence", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		};
 		// First entry holds pending (no answer yet). Drive it in the
@@ -148,6 +151,7 @@ describe("routeOffline: live presence", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		};
 		const first = routeOffline({ ...base, call: callWith("c1") });
@@ -179,6 +183,7 @@ describe("routeOffline: live presence", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		};
 		const first = await routeOffline({ ...base, call: callWith("c1") });
@@ -210,6 +215,7 @@ describe("routeOffline: live presence", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		};
 		const [a, b] = await Promise.all([
@@ -248,6 +254,7 @@ describe("routeOffline: live presence", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		});
 		expect(result).toBeUndefined();
@@ -283,6 +290,7 @@ describe("routeOffline: deny and internal", () => {
 				settings: defaultSettings(),
 				store,
 				log,
+				ownerClearances: [],
 				context: liveContext(),
 			});
 			expect(result?.block).toContain('deny rule "rm -rf" matched');
@@ -305,6 +313,7 @@ describe("routeOffline: deny and internal", () => {
 			settings: defaultSettings(),
 			store,
 			log,
+			ownerClearances: [],
 			context: liveContext(),
 		});
 		expect(result?.block).toBe(

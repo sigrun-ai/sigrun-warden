@@ -7,16 +7,17 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ToolHookCall } from "@earendil-works/pi-durable";
+import type { HookApi, ToolHookCall } from "@earendil-works/pi-durable";
 import type { Context } from "@earendil-works/chord";
 
 import type { Classification } from "../src/classify.js";
 import type { Card } from "../src/cards.js";
 import { CardStore } from "../src/cards.js";
 import { runInfo } from "../src/context.js";
+import createWarden from "../src/index.js";
 import { Cooldown } from "../src/judge.js";
 import { HoldLog } from "../src/log.js";
-import { routeOffline } from "../src/route.js";
+import { clearancesFor, routeOffline } from "../src/route.js";
 import { defaultSettings } from "../src/settings-schema.js";
 import { StateStore } from "../src/state.js";
 import {
@@ -91,6 +92,7 @@ interface Env {
 	log: HoldLog;
 	store: StateStore;
 	settings: ReturnType<typeof defaultSettings>;
+	ownerClearances: readonly { job: string; tools: string[] }[];
 	cooldown: Cooldown;
 }
 
@@ -101,6 +103,12 @@ interface Env {
  */
 async function jobEnv(opts: {
 	clearances?: { job: string; tools: string[] }[];
+	userSettings?: Record<
+		string,
+		{ clearances: readonly { job: string; tools: string[] }[] }
+	>;
+	ownerClearances?: readonly { job: string; tools: string[] }[];
+	jobOwner?: string;
 	decisionResults?: unknown[];
 	entries?: unknown[];
 	skillLocation?: string;
@@ -117,13 +125,23 @@ async function jobEnv(opts: {
 		toolResultEntry("acme-media/torrents_list", "7: done, seeding 100%\n9: done, seeding 100%"),
 		assistantEntry(),
 	];
+	const jobOwner = opts.jobOwner ?? "alice";
 	const fake = await createFakeHost({
 		owner: "alice",
 		metaJobId: JOB,
-		activeRun: { jobId: JOB, owner: "alice" },
+		activeRun: { jobId: JOB, ...(jobOwner === "" ? {} : { owner: jobOwner }) },
+		hookResults: [{
+			status: "ok",
+			value: {
+				server: "acme-media",
+				name: MCP_NAME,
+				annotations: { readOnlyHint: false, destructiveHint: true },
+			},
+		}],
 		entries,
 		escalations,
 		decisionResults: opts.decisionResults ?? [],
+		userSettings: opts.userSettings,
 	});
 	if (opts.seedCard !== false) {
 		await new CardStore(`${fake.root}/data`).put(CARD);
@@ -134,7 +152,15 @@ async function jobEnv(opts: {
 		...defaultSettings(),
 		clearances: opts.clearances ?? [{ job: JOB, tools: [TOOL] }],
 	};
-	return { fake, escalations, log, store, settings, cooldown: new Cooldown() };
+	return {
+		fake,
+		escalations,
+		log,
+		store,
+		settings,
+		ownerClearances: opts.ownerClearances ?? [],
+		cooldown: new Cooldown(),
+	};
 }
 
 async function route(
@@ -165,12 +191,21 @@ async function route(
 		presence: { kind: "job", jobId: JOB, owner: "alice" },
 		run,
 		settings: env.settings,
+		ownerClearances: env.ownerClearances,
 		store: env.store,
 		log: env.log,
 		context: liveContext(),
 		...(judge === undefined ? {} : { judge: judge as never }),
 		cooldown: env.cooldown,
 	});
+}
+
+/** Drive the real factory hook, including its owner-only settings read. */
+async function beforeTool(fake: FakeHost, call: ToolHookCall) {
+	const registration = createWarden(fake.host).extension?.hooks?.[0]?.handlers as {
+		beforeTool(call: ToolHookCall, api: HookApi, context: Context): Promise<{ block?: string } | undefined>;
+	};
+	return registration.beforeTool(call, { conversationId: 1 } as HookApi, liveContext());
 }
 
 /** The hold-log records of one env, newest last. */
@@ -188,6 +223,115 @@ describe("job path: clearances + card check", () => {
 	let env: Env;
 	afterEach(async () => {
 		await env.fake.cleanup();
+	});
+
+	it("a job with no defined effective owner receives no user clearances", async () => {
+		env = await jobEnv({
+			jobOwner: "",
+			clearances: [{ job: "ext:acme:other-job", tools: [TOOL] }],
+			userSettings: { alice: { clearances: [{ job: JOB, tools: [TOOL] }] } },
+		});
+		const result = await beforeTool(env.fake, callWith("ownerless-job"));
+		expect(env.fake.userSettingsReads).toEqual([]);
+		expect(result?.block).not.toContain("warden error");
+		expect(result?.block).toContain("Not cleared for this job");
+	});
+
+	it("the factory uses only the job owner's user clearances", async () => {
+		env = await jobEnv({
+			clearances: [],
+			// Bob alone lists the destructive tool: the distance from the
+			// generic not-cleared block is how wrong-owner use would show.
+			userSettings: {
+				bob: { clearances: [{ job: JOB, tools: [TOOL] }] },
+				alice: { clearances: [{ job: JOB, tools: ["acme-media/torrents_list"] }] },
+			},
+		});
+		const result = await beforeTool(env.fake, callWith("factory-owner-selection"));
+		expect(env.fake.userSettingsReads).toEqual(["alice"]);
+		expect(result?.block).toContain("Not cleared for this job");
+		expect(env.escalations.items).toHaveLength(1);
+		expect(env.fake.decisionCalls).toHaveLength(0);
+	});
+
+	it("the factory reads the job owner's matching personal clearance", async () => {
+		env = await jobEnv({
+			clearances: [],
+			userSettings: { alice: { clearances: [{ job: JOB, tools: [TOOL] }] } },
+			seedCard: false,
+		});
+		const result = await beforeTool(env.fake, callWith("factory-owner-clearance"));
+		expect(env.fake.userSettingsReads).toEqual(["alice"]);
+		expect(result?.block).not.toContain("warden error");
+		expect(result?.block).not.toContain("Not cleared for this job");
+		expect(result?.block).toContain(`no skill card covers ${MCP_NAME}`);
+	});
+
+	it("a user clearance clears the user's own job", async () => {
+		// Production break caught: clearancesFor drops or ignores the job
+		// owner's personal clearance for the matching job.
+		env = await jobEnv({
+			clearances: [],
+			ownerClearances: [{ job: JOB, tools: [TOOL] }],
+			decisionResults: [okResult((q) => (q.endsWith("_escalate") ? 0.1 : 0.95), QUESTIONS_2)],
+		});
+		const result = await route(env, callWith("c1"));
+		expect(result).toBeUndefined();
+		expect(env.fake.decisionCalls).toHaveLength(1);
+		expect(env.escalations.items).toHaveLength(0);
+	});
+
+	it("clearancesFor combines system entries with only the owner's matching entries", () => {
+		const system = [
+			{ job: JOB, tools: [TOOL] },
+			{ job: "ext:acme:other-job", tools: ["bash"] },
+		];
+		const owner = [
+			{ job: "ext:acme:other-job", tools: ["never grant this"] },
+			{ job: JOB, tools: ["acme-media/torrents_list"] },
+		];
+		expect(clearancesFor(system, owner, JOB)).toEqual([
+			system[0],
+			system[1],
+			owner[1],
+		]);
+	});
+
+	it("a job with a user-owned clearance and no system match resolves it through the factory", async () => {
+		env = await jobEnv({
+			clearances: [],
+			userSettings: { alice: { clearances: [{ job: JOB, tools: [TOOL] }] } },
+			decisionResults: [okResult((q) => (q.endsWith("_escalate") ? 0.1 : 0.95), QUESTIONS_2)],
+		});
+		await expect(beforeTool(env.fake, callWith("c1"))).resolves.toBeUndefined();
+		expect(env.fake.decisionCalls).toHaveLength(1);
+		expect(env.escalations.items).toHaveLength(0);
+	});
+
+	it("user clearance for a job owned by someone else is ignored", async () => {
+		// A hand-edited bob entry names alice's job. The route's owner-only
+		// source is empty: bob's entry must not clear anything.
+		env = await jobEnv({
+			clearances: [],
+			ownerClearances: [],
+			userSettings: { bob: { clearances: [{ job: JOB, tools: [TOOL] }] } },
+		});
+		const result = await route(env, callWith("c1"));
+		expect(result?.block).toContain("Not cleared for this job");
+		expect(env.escalations.items).toHaveLength(1);
+		expect(env.fake.decisionCalls).toHaveLength(0);
+	});
+
+	it("system clearances still apply to any job", async () => {
+		env = await jobEnv({
+			clearances: [{ job: JOB, tools: [TOOL] }],
+			ownerClearances: [],
+			decisionResults: [okResult((q) => (q.endsWith("_escalate") ? 0.1 : 0.95), QUESTIONS_2)],
+		});
+		const result = await route(env, callWith("c1"));
+		expect(result).toBeUndefined();
+		expect(env.fake.decisionCalls).toHaveLength(1);
+		expect(env.escalations.items).toHaveLength(0);
 	});
 
 	it("not cleared → block + escalate (no decision request)", async () => {

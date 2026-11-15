@@ -151,6 +151,7 @@ async function liveEnv(
 		settings: defaultSettings(),
 		store,
 		log,
+		ownerClearances: [],
 		context: liveContext(),
 		judge: over?.judgeOff === true ? undefined : decisionsJudge(fake.host, defaultSettings(), cooldown),
 		cooldown,
@@ -495,6 +496,7 @@ describe("bash-unknown: the irreversible judgment", () => {
 				settings: defaultSettings(),
 				store: jobStore,
 				log: jobLog,
+				ownerClearances: [],
 				context: liveContext(),
 			});
 			expect(blocked?.block).toContain("escalation esc-1");
@@ -620,6 +622,7 @@ describe("mcp-unknown: the irreversible judgment", () => {
 					settings: defaultSettings(),
 					store: new StateStore(`${jobFake.root}/state`),
 					log: new HoldLog(`${jobFake.root}/state/holds.jsonl`, () => new Date()),
+					ownerClearances: [],
 					context: liveContext(),
 					...(judged ? { judge: decisionsJudge(jobFake.host, defaultSettings(), cooldown) } : {}),
 					cooldown,
@@ -696,6 +699,7 @@ describe("bash-unknown in a job: judged before escalating", () => {
 					settings: defaultSettings(),
 					store: new StateStore(`${jobFake.root}/state`),
 					log: new HoldLog(`${jobFake.root}/state/holds.jsonl`, () => new Date()),
+					ownerClearances: [],
 					context: liveContext(),
 					...(judged ? { judge: decisionsJudge(jobFake.host, defaultSettings(), cooldown) } : {}),
 					cooldown,

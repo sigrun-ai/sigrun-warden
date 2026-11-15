@@ -18,7 +18,12 @@ import {
 	routeOffline,
 	startPruneOnce,
 } from "./route.js";
-import { WARDEN_SETTINGS_SCHEMA, defaultSettings, type WardenSettings } from "./settings-schema.js";
+import {
+	WARDEN_SETTINGS_SCHEMA,
+	WARDEN_USER_SCHEMA,
+	type WardenSettings,
+	type WardenUserSettings,
+} from "./settings-schema.js";
 import { StateStore } from "./state.js";
 import { toolExecuted } from "./tool-executed.js";
 
@@ -39,8 +44,9 @@ export default function createWarden(
 	// repair are core's from here on. Every read is per tool call — never in
 	// this factory body, whose provisional slug is the package's
 	// (`warden`), not the declared name's (`sigrun-warden`).
-	const settingsHandle = host.settings.declare<WardenSettings>({
+	const settingsHandle = host.settings.declare<WardenSettings, WardenUserSettings>({
 		schema: WARDEN_SETTINGS_SCHEMA,
+		userSchema: WARDEN_USER_SCHEMA,
 	});
 	const log = new HoldLog(
 		`${host.stores.paths.state}/holds.jsonl`,
@@ -75,6 +81,10 @@ export default function createWarden(
 				{ annotations, settings },
 			);
 			const presence = await presenceOf(host, api.conversationId);
+			const ownerClearances =
+				presence.kind === "job" && presence.owner !== undefined
+					? (await settingsHandle.user(presence.owner).get()).clearances
+					: [];
 			const run = await runInfo(host, api.conversationId);
 			const judge = decisionsJudge(
 				host,
@@ -90,6 +100,7 @@ export default function createWarden(
 				presence,
 				run,
 				settings,
+				ownerClearances,
 				store,
 				log,
 				context,
@@ -243,8 +254,12 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-export { WARDEN_SETTINGS_SCHEMA, defaultSettings } from "./settings-schema.js";
-export type { WardenSettings } from "./settings-schema.js";
+export {
+	WARDEN_SETTINGS_SCHEMA,
+	WARDEN_USER_SCHEMA,
+	defaultSettings,
+} from "./settings-schema.js";
+export type { Clearance, WardenSettings, WardenUserSettings } from "./settings-schema.js";
 export { classify, annotationFromHookResult } from "./classify.js";
 export type { AnnotationLookup, Classification, ClassifyDeps } from "./classify.js";
 export { HoldLog } from "./log.js";
