@@ -2,7 +2,7 @@
  * Where the tool call is happening (warden spec §3.2 presence classes):
  * an internal curator run, a scheduled job run, or a live conversation.
  */
-import { isUserInput } from "@sigrun/shared/turns";
+import { isUserInput, typedText } from "@sigrun/shared/turns";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
 import type { ConversationId, EntryId } from "@earendil-works/pi-durable";
 import type { EntryRecord } from "@earendil-works/pi-durable";
@@ -50,32 +50,6 @@ export interface RunInfo {
 }
 
 const ASKED_MAX = 3000;
-
-/** Extract the visible text of one entry's first user-model message. */
-function userText(entry: EntryRecord): string {
-	const messages = entry.model;
-	if (messages === undefined || messages.length === 0) return "";
-	const parts: string[] = [];
-	for (const message of messages) {
-		if (message.role !== "user") continue;
-		const content = (message as { content?: unknown }).content;
-		if (typeof content === "string") {
-			parts.push(content);
-		} else if (Array.isArray(content)) {
-			for (const block of content) {
-				if (
-					typeof block === "object" &&
-					block !== null &&
-					(block as { type?: unknown }).type === "text" &&
-					typeof (block as { text?: unknown }).text === "string"
-				) {
-					parts.push((block as { text: string }).text);
-				}
-			}
-		}
-	}
-	return parts.join("\n");
-}
 
 /**
  * Read the run a held call belongs to. Tolerant by contract: it feeds
@@ -139,7 +113,7 @@ export async function runInfo(
 		return { runStart: undefined, request: "", asked: "", entries: records };
 	}
 	const runEntries = records.slice(startIndex);
-	const request = userText(runEntries[0]!);
+	const request = typedText(runEntries[0]!);
 	return {
 		runStart: runEntries[0]!.id,
 		request,

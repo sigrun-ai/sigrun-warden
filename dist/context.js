@@ -2,7 +2,7 @@
  * Where the tool call is happening (warden spec §3.2 presence classes):
  * an internal curator run, a scheduled job run, or a live conversation.
  */
-import { isUserInput } from "@sigrun/shared/turns";
+import { isUserInput, typedText } from "@sigrun/shared/turns";
 /**
  * Classify the conversation the hook is running in. `meta.internal` wins
  * (a curator run never escalates); otherwise the job whose fire is
@@ -26,32 +26,6 @@ export async function presenceOf(host, conversationId) {
     };
 }
 const ASKED_MAX = 3000;
-/** Extract the visible text of one entry's first user-model message. */
-function userText(entry) {
-    const messages = entry.model;
-    if (messages === undefined || messages.length === 0)
-        return "";
-    const parts = [];
-    for (const message of messages) {
-        if (message.role !== "user")
-            continue;
-        const content = message.content;
-        if (typeof content === "string") {
-            parts.push(content);
-        }
-        else if (Array.isArray(content)) {
-            for (const block of content) {
-                if (typeof block === "object" &&
-                    block !== null &&
-                    block.type === "text" &&
-                    typeof block.text === "string") {
-                    parts.push(block.text);
-                }
-            }
-        }
-    }
-    return parts.join("\n");
-}
 /**
  * Read the run a held call belongs to. Tolerant by contract: it feeds
  * the judge's clear-ask input (Task 12), so an unreadable history yields
@@ -98,7 +72,7 @@ export async function runInfo(host, conversationId) {
         return { runStart: undefined, request: "", asked: "", entries: records };
     }
     const runEntries = records.slice(startIndex);
-    const request = userText(runEntries[0]);
+    const request = typedText(runEntries[0]);
     return {
         runStart: runEntries[0].id,
         request,
