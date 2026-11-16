@@ -6,6 +6,7 @@
  * outcome; `route.ts` maps it onto block text / the interaction hold.
  */
 import { APPROVAL_THRESHOLD, actionAskGate, askApproval, describeAction, questions, redact, stripDataText, } from "pi-warden";
+import { isUserInput, typedText } from "@sigrun/shared/turns";
 import { clearAskQuestion } from "./questions.js";
 import { callFingerprint } from "./state.js";
 /** The approval request's own deadline (pi-warden's default shape). */
@@ -42,7 +43,7 @@ function replyText(entry) {
     return parts.join("\n");
 }
 /**
- * A reply entry is a person's input entry (`pi.user`, this run or a
+ * A reply entry is any user-input kind (this run or a
  * later one — a later person's message IS this run's start, so the run
  * window covers both) or a tool result of a tool named
  * `ask_user_question`. Only entries AFTER the block (the blocked
@@ -58,8 +59,8 @@ function findReply(entries, atEntry, released, fingerprint) {
         if (released.some((rel) => rel.fingerprint === fingerprint && rel.replyEntry === String(entry.id))) {
             continue;
         }
-        if (entry.kind === "pi.user") {
-            return { id: String(entry.id), text: replyText(entry) };
+        if (isUserInput(entry)) {
+            return { id: String(entry.id), text: typedText(entry) };
         }
         if (entry.kind === "pi.tool-result") {
             const message = (entry.model ?? [])[0];

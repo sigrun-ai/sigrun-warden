@@ -1,4 +1,9 @@
 /**
+ * Where the tool call is happening (warden spec §3.2 presence classes):
+ * an internal curator run, a scheduled job run, or a live conversation.
+ */
+import { isUserInput, typedText } from "@sigrun/shared/turns";
+/**
  * Classify the conversation the hook is running in. `meta.internal` wins
  * (a curator run never escalates); otherwise the job whose fire is
  * currently running in this conversation decides job-vs-live.
@@ -21,32 +26,6 @@ export async function presenceOf(host, conversationId) {
     };
 }
 const ASKED_MAX = 3000;
-/** Extract the visible text of one entry's first user-model message. */
-function userText(entry) {
-    const messages = entry.model;
-    if (messages === undefined || messages.length === 0)
-        return "";
-    const parts = [];
-    for (const message of messages) {
-        if (message.role !== "user")
-            continue;
-        const content = message.content;
-        if (typeof content === "string") {
-            parts.push(content);
-        }
-        else if (Array.isArray(content)) {
-            for (const block of content) {
-                if (typeof block === "object" &&
-                    block !== null &&
-                    block.type === "text" &&
-                    typeof block.text === "string") {
-                    parts.push(block.text);
-                }
-            }
-        }
-    }
-    return parts.join("\n");
-}
 /**
  * Read the run a held call belongs to. Tolerant by contract: it feeds
  * the judge's clear-ask input (Task 12), so an unreadable history yields
@@ -57,12 +36,12 @@ function userText(entry) {
 export async function runInfo(host, conversationId) {
     let records;
     try {
-        // Newest-first probe: find the newest "pi.user" entry id. Anchoring
+        // Newest-first probe: find the newest user-input entry id. Anchoring
         // the window at it keeps the run current even when the transcript
         // outgrows a single page — a plain ascending page would read the
         // OLDEST entries and freeze runStart near the conversation start.
         const probe = await host.conversations.entries(conversationId, { order: "descending" }, 200, undefined);
-        const newestUser = probe.items.find((entry) => entry.kind === "pi.user");
+        const newestUser = probe.items.find((entry) => isUserInput(entry));
         if (newestUser === undefined) {
             // No user input in the newest page: fall back to the plain
             // ascending read (whole page / empty run).
@@ -79,12 +58,12 @@ export async function runInfo(host, conversationId) {
     catch {
         return { runStart: undefined, request: "", asked: "", entries: [] };
     }
-    // The window starts at the newest user input, so the first "pi.user"
+    // The window starts at the newest user input, so the first user-input
     // entry walking forward is the run start (kept as a scan so the
     // fallback page — which may predate it — still anchors correctly).
     let startIndex = -1;
     for (let i = 0; i < records.length; i += 1) {
-        if (records[i].kind === "pi.user") {
+        if (isUserInput(records[i])) {
             startIndex = i;
             break;
         }
@@ -93,7 +72,7 @@ export async function runInfo(host, conversationId) {
         return { runStart: undefined, request: "", asked: "", entries: records };
     }
     const runEntries = records.slice(startIndex);
-    const request = userText(runEntries[0]);
+    const request = typedText(runEntries[0]);
     return {
         runStart: runEntries[0].id,
         request,
