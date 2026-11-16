@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   card condensation and the per-call card check. Requires sigrun 0.18.0 or
   newer; the shared peer includes 0.18.0.
 
+## [0.2.4] - 2026-11-15
+
+- Release-machinery only: the v0.2.3 tag tested against the then-
+  unreleased core (the shared helpers this release imports exist only
+  in core 0.20.0); CI now tests against core main during the train.
+  Identical code to 0.2.3.
+
 ## [0.2.3] - 2026-11-15
 
 - Recognise `sigrun.user` (and, fixing today's miss,
