@@ -81,7 +81,7 @@ const HOST_MODULE_PINS = {
 	typebox: "1.3.27",
 	// The core lines the warden runs against; it takes no runtime value
 	// imports from shared (types only), so each core line is accepted.
-	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0 || 0.12.0 || 0.13.0 || 0.14.0 || 0.15.0 || 0.18.0 || 0.19.1 || 0.20.0 || 0.20.1",
+	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0 || 0.12.0 || 0.13.0 || 0.14.0 || 0.15.0 || 0.18.0 || 0.19.1 || 0.20.0 || 0.20.1 || 0.20.2",
 };
 /** Development happens against pi-durable 1.5.0 (exact). */
 const DEV_PIN_OVERRIDES = {
