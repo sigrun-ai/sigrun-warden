@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   card condensation and the per-call card check. Requires sigrun 0.18.0 or
   newer; the shared peer includes 0.18.0.
 
+## [0.2.3] - 2026-11-15
+
+- Recognise `sigrun.user` (and, fixing today's miss,
+  `sigrun.user.expanded`) input entries via the shared `isUserInput`
+  helper: the context window anchors on the newest user input of every
+  kind, and the judges weigh the person's TYPED request — not an
+  expanded skill body or an inline attachment body.
+- Peer floors: `@sigrun/shared` gains 0.20.0, `@sigrun/sigrun`
+  >= 0.20.0.
+
 ## [0.2.2] - 2026-11-15
 
 - Per-user clearances: a job's effective clearances are the system list's
