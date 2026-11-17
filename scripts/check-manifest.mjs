@@ -79,9 +79,11 @@ const HOST_MODULE_PINS = {
 	"@earendil-works/pi-ai": "~1.5.0",
 	"@earendil-works/chord": "~1.5.0",
 	typebox: "1.3.27",
-	// The core lines the warden runs against; it takes no runtime value
-	// imports from shared (types only), so each core line is accepted.
-	"@sigrun/shared": "0.8.0 || 0.9.0 || 0.10.0 || 0.10.1 || 0.11.0 || 0.12.0 || 0.13.0 || 0.14.0 || 0.15.0 || 0.18.0 || 0.19.1 || 0.20.0 || 0.20.1 || 0.20.2",
+	// Open floor (C5): any shared line carrying the turns helpers
+	// (`isUserInput`/`typedText`), `accessOf`, and the decisions/
+	// interactions types the warden imports. 0.20.0 is the first
+	// published line that does.
+	"@sigrun/shared": ">=0.20.0",
 };
 /** Development happens against pi-durable 1.5.0 (exact). */
 const DEV_PIN_OVERRIDES = {

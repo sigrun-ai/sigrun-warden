@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   card condensation and the per-call card check. Requires sigrun 0.18.0 or
   newer; the shared peer includes 0.18.0.
 
+### Changed
+
+- The `@sigrun/shared` peer becomes an open floor (`>=0.20.0`) instead of a
+  version-line chain (decisions C5); 0.20.0 is the first published line
+  carrying the `turns` helpers (`isUserInput`/`typedText`), `accessOf`, and
+  the `decisions`/`interactions` types the warden imports. `check-manifest`
+  enforces the same floor. No runtime change.
+- Comments only (A8/A9): `src/skills.ts` `entryText` now says why it reads the
+  MODEL text (`<skill>` bodies are expanded into the model prompt; `typedText`
+  would never carry a tag), and `test/live.test.ts` names the run window's
+  anchor as the newest user-INPUT entry (`isUserInput`), not the `pi.user`
+  kind alone.
+
 ## [0.2.6] - 2026-11-15
 
 - The @sigrun/shared peer gains the 0.20.2 line (companion to
