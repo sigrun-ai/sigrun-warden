@@ -65,7 +65,7 @@ check(typeof manifest.homepage === "string", "package.json: homepage absent");
  * develops against the pi-durable 1.5.0 host family (peers accept
  * ~1.5.0; devDeps pin 1.5.0 exactly), keeping one type-compatible copy
  * of chord/pi-ai/pi-durable.
- * @sigrun/shared ships runtime VALUE imports (accessOf) — it rides as a
+ * @sigrun/shared ships runtime VALUE imports (isUserInput/typedText) — it rides as a
  * peer so consumers' installs resolve it, with the dev file: link to
  * core's workspace (the ext-gateway family posture).
  * @sigrun/sigrun carries the declared-settings types and, for the test
@@ -80,9 +80,8 @@ const HOST_MODULE_PINS = {
 	"@earendil-works/chord": "~1.5.0",
 	typebox: "1.3.27",
 	// Open floor (C5): any shared line carrying the turns helpers
-	// (`isUserInput`/`typedText`), `accessOf`, and the decisions/
-	// interactions types the warden imports. 0.20.0 is the first
-	// published line that does.
+	// (`isUserInput`/`typedText`) and the decisions types the warden
+	// imports. 0.20.0 is the first published line that does.
 	"@sigrun/shared": ">=0.20.0",
 };
 /** Development happens against pi-durable 1.5.0 (exact). */

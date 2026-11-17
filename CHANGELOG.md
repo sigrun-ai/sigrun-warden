@@ -5,27 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- **My Settings → Warden** now declares personal clearances. A job uses
-  matching system entries plus only its effective owner's matching personal
-  entries, with ownerless jobs using the system list alone. Clearance jobs
-  declare `x-sigrun-job` and their tools declare `x-sigrun-tool`, so cores
-  with the picker contract render the job and multi-tool dropdowns. The
-  picker bindings require a future core picker release; 0.18.x preserves
-  these declared keywords.
-- The card model is labelled **Skill card model**, with help text describing
-  card condensation and the per-call card check. Requires sigrun 0.18.0 or
-  newer; the shared peer includes 0.18.0.
+## [0.2.7] - 2026-11-17
 
 ### Changed
 
 - The `@sigrun/shared` peer becomes an open floor (`>=0.20.0`) instead of a
   version-line chain (decisions C5); 0.20.0 is the first published line
-  carrying the `turns` helpers (`isUserInput`/`typedText`), `accessOf`, and
-  the `decisions`/`interactions` types the warden imports. `check-manifest`
+  carrying the `turns` helpers (`isUserInput`/`typedText`) and the
+  `decisions` types the warden imports. `check-manifest`
   enforces the same floor. No runtime change.
 - Comments only (A8/A9): `src/skills.ts` `entryText` now says why it reads the
   MODEL text (`<skill>` bodies are expanded into the model prompt; `typedText`
