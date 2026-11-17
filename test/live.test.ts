@@ -262,7 +262,8 @@ describe("evaluateLive: approval on reply", () => {
 		const request = userEntry("tidy up my downloads");
 
 		// The person replies approvingly; the retry's run window is anchored
-		// at the reply (runInfo anchors at the NEWEST pi.user entry).
+		// at the reply (runInfo anchors at the newest USER-INPUT entry —
+		// `isUserInput`, not the `pi.user` kind alone).
 		const reply = userEntry("yes, those are the right torrents — remove them");
 		const run2 = await runInfoFor(env, [request, reply]);
 		const second = await evaluateLive(env.input({ run: run2 }));

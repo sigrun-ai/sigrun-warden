@@ -23,7 +23,12 @@ export function skillTagsInText(text) {
     }
     return tags;
 }
-/** The text blocks of one entry's model messages, joined. */
+/** The text blocks of one entry's MODEL messages, joined.
+ *
+ * This reader deliberately reads the model text, not the typed user text:
+ * `<skill>` bodies are expanded INTO the model prompt, so tag detection has
+ * to see what the model saw. Do not swap this for `typedText` (shared/turns)
+ * — that returns the person's raw input and would never carry a tag. */
 function entryText(entry) {
     const messages = entry.model;
     if (messages === undefined || messages.length === 0)
