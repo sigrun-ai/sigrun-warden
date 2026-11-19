@@ -24,6 +24,8 @@ export interface HoldRecord {
 		| "allow-judged"
 		| "warn";
 	scores?: Record<string, number>;
+	/** The escalation whose answer released the call (approved calls). */
+	escalationId?: string;
 	outcome?: "approved" | "declined" | "replanned" | "escalated" | "abandoned";
 }
 

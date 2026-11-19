@@ -6,6 +6,7 @@
  * effective owner (core Task 3).
  */
 import type { ToolHookCall } from "@earendil-works/pi-durable";
+import type { ApprovedCall } from "./approved.js";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
 import type { ConversationId } from "@earendil-works/pi-durable";
 export interface RaiseResult {
@@ -44,3 +45,10 @@ export declare function raiseEscalation(host: SigrunHost, call: Pick<ToolHookCal
 export declare function takeGrant(host: SigrunHost, key: string, jobId: string, conversationId: ConversationId): Promise<TakeResult>;
 /** Resolve a claimed item after carrying out its answer (throws on a provider error). */
 export declare function resolveGrant(host: SigrunHost, id: string, outcome: "done" | "failed", note: string, conversationId: ConversationId): Promise<ResolveResult>;
+/**
+ * The calls approved by answers the calling conversation has claimed
+ * (`escalation.approved-calls`). No provider, an older provider without
+ * the hook, or a provider error all mean no approvals: the call takes the
+ * ordinary path.
+ */
+export declare function approvedCalls(host: SigrunHost, jobId: string, conversationId: ConversationId): Promise<ApprovedCall[]>;

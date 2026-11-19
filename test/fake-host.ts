@@ -21,8 +21,10 @@ export interface FakeEscalationItem {
 	id: string;
 	key: string;
 	namespace: string;
-	status: "open" | "answered" | "claimed" | "resolved";
+	status: "open" | "answered" | "claimed" | "resolved" | "dismissed";
 	option?: string;
+	/** The chosen option's declared calls (escalation.approved-calls). */
+	approvedCalls?: { tool: string; arguments: Record<string, unknown> }[];
 	claimConversationId?: number;
 	resolveOutcome?: "done" | "failed";
 	resolveNote?: string;
@@ -269,6 +271,15 @@ export async function createFakeHost(options: FakeHostOptions = {}): Promise<Fak
 				return { status: "claimed", id: item.id, option: item.option };
 			}
 			return { status: item.status, id: item.id };
+		}
+		if (name === "escalation.approved-calls") {
+			return {
+				calls: items.flatMap((item) =>
+					item.status === "claimed" && item.claimConversationId === opts?.conversationId
+						? (item.approvedCalls ?? []).map((entry) => ({ id: item.id, ...entry }))
+						: [],
+				),
+			};
 		}
 		if (name === "escalation.resolve") {
 			const id = payload.id as string;

@@ -11,7 +11,7 @@ decides what happens to every model-issued tool call, by **presence**:
 | presence | what a destructive call does |
 |---|---|
 | **live** (a person is in the conversation) | judged (clear-ask); a vague ask steers the model; an ignored steer — or a judge-free destructive call — seeds a `warden.confirm` interaction and the call waits for the person. Allow runs it; deny refuses it with the reason. |
-| **job** (a scheduled job's run) | one-shot grants first (an answered escalation approves one execution); then clearances: a cleared `{job, tool}` runs **only** after the per-target card check passes; everything else blocks and escalates. |
+| **job** (a scheduled job's run) | approved calls first: a call that an escalation option declared (`calls`) and the person chose runs once the run has claimed that answer (same tool and non-target arguments, targets within the approved set); then one-shot grants (an answered warden escalation approves one execution); then clearances: a cleared `{job, tool}` runs **only** after the per-target card check passes; everything else blocks and escalates. A dismissed warden hold is no decision and never shadows a clearance. |
 | **internal** (a curator review run) | blocked outright. No escalation. |
 
 `deny` rules block in every presence. `warn` rules never change the

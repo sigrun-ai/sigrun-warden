@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Approved calls: in a job run, a call that matches a call declared on the
+  chosen option of an escalation this run claimed (escalations'
+  `escalation.approved-calls` hook) runs without a card check or a second
+  warden escalation. A match needs the same tool and non-target
+  arguments, and targets within the approved set, so splits of a larger
+  approval still match. The hold log records `release`/`approved` with
+  the approving `escalationId`. Without the hook (no or older
+  escalations), nothing changes.
+
+### Fixed
+
+- A dismissed warden hold no longer blocks its exact call forever: it no
+  longer counts as a grant in a non-approving state, so a cleared call
+  reaches the card check, and a block names the dismissed item instead
+  of claiming to have raised it.
+
 ## [0.2.7] - 2026-11-17
 
 ### Changed

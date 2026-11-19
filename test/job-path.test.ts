@@ -507,3 +507,104 @@ describe("job path: clearances + card check", () => {
 		expect(JSON.stringify(request.state.evidence)).toContain("[redacted]");
 	});
 });
+
+describe("job path: calls a person approved on a claimed escalation", () => {
+	let env: Env;
+	afterEach(async () => {
+		await env.fake.cleanup();
+	});
+
+	/** A skill escalation this run (conversation 1, unless `claimedBy`) claimed, approving `calls`. */
+	function approve(
+		calls: { tool: string; arguments: Record<string, unknown> }[],
+		claimedBy = 1,
+	): void {
+		env.escalations.items.push({
+			id: "skill-1",
+			key: "torrents:stale",
+			namespace: `job:${JOB}`,
+			status: "claimed",
+			option: "remove",
+			claimConversationId: claimedBy,
+			approvedCalls: calls,
+			created: true,
+		});
+	}
+
+	it("an approved call runs uncleared, with no card check and no warden escalation", async () => {
+		env = await jobEnv({ clearances: [] });
+		approve([{ tool: TOOL, arguments: { ids: [7, 9] } }]);
+		const result = await route(env, callWith("c1"));
+		expect(result).toBeUndefined();
+		expect(env.fake.decisionCalls).toHaveLength(0);
+		expect(env.escalations.items.map((item) => item.id)).toEqual(["skill-1"]);
+		expect((await logRecords(env)).at(-1)).toMatchObject({
+			action: "release",
+			outcome: "approved",
+			escalationId: "skill-1",
+		});
+	});
+
+	it("a split of the approved targets matches; an extra target or a changed argument does not", async () => {
+		env = await jobEnv({ clearances: [] });
+		approve([{ tool: TOOL, arguments: { ids: [7, 9, 11], purge: true } }]);
+		expect(await route(env, callWith("c1", { ids: [9, 7], purge: true }))).toBeUndefined();
+		expect((await route(env, callWith("c2", { ids: [7, 12], purge: true })))?.block).toContain(
+			"Not cleared for this job",
+		);
+		expect((await route(env, callWith("c3", { ids: [7], purge: false })))?.block).toContain(
+			"Not cleared for this job",
+		);
+	});
+
+	it("a call with no target list matches only identical arguments", async () => {
+		env = await jobEnv({ clearances: [] });
+		approve([{ tool: TOOL, arguments: { path: "/a", mode: "move" } }]);
+		expect(await route(env, callWith("c1", { mode: "move", path: "/a" }))).toBeUndefined();
+		expect((await route(env, callWith("c2", { mode: "copy", path: "/a" })))?.block).toContain(
+			"Not cleared for this job",
+		);
+	});
+
+	it("a claim held by another conversation approves nothing", async () => {
+		env = await jobEnv({ clearances: [] });
+		approve([{ tool: TOOL, arguments: { ids: [7, 9] } }], 2);
+		expect((await route(env, callWith("c1")))?.block).toContain("Not cleared for this job");
+	});
+});
+
+describe("job path: a dismissed warden hold", () => {
+	let env: Env;
+	afterEach(async () => {
+		await env.fake.cleanup();
+	});
+
+	/** The warden's own earlier hold for this exact call, dismissed by the person. */
+	async function dismissedHold(): Promise<void> {
+		await route(env, callWith("seed"), DESTRUCTIVE, { judge: false });
+		const item = env.escalations.items.at(-1)!;
+		item.status = "dismissed";
+	}
+
+	it("no longer shadows a clearance: the card check decides", async () => {
+		env = await jobEnv({
+			decisionResults: [
+				okResult((name) => (name.endsWith("_meets") ? 0.95 : 0.05), QUESTIONS_2),
+			],
+		});
+		await dismissedHold();
+		expect(await route(env, callWith("c1"))).toBeUndefined();
+	});
+
+	it("when the card check fails, the block names the dismissed item instead of a fresh raise", async () => {
+		env = await jobEnv({
+			decisionResults: [
+				okResult((name) => (name.endsWith("_meets") ? 0.1 : 0.05), QUESTIONS_2),
+			],
+		});
+		await dismissedHold();
+		const result = await route(env, callWith("c1"));
+		expect(result?.block).toContain("escalation esc-1 for this call was dismissed");
+		expect(env.escalations.items).toHaveLength(1);
+	});
+});

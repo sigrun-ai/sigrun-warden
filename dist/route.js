@@ -4,7 +4,8 @@ import { cardCheck } from "./card-check.js";
 import { buildCard } from "./cards.js";
 import { EVIDENCE_BUDGET_BYTES, evidenceFor } from "./evidence.js";
 import { holdForPerson } from "./interaction.js";
-import { raiseEscalation, resolveGrant, takeGrant } from "./escalate.js";
+import { approvalFor } from "./approved.js";
+import { approvedCalls, raiseEscalation, resolveGrant, takeGrant } from "./escalate.js";
 import { skillsInRun } from "./skills.js";
 import { callFingerprint, grantKey } from "./state.js";
 import { targetsOf } from "./targets.js";
@@ -144,6 +145,19 @@ export async function routeOffline(input) {
         });
         const outcome = await holdForPerson(input.host, call, input.conversationId, `${fp}-${decision.nonce}`, reasons, input.context);
         return finishAnswer(input, fp, decision.nonce, logBase, outcome);
+    }
+    // Job presence: a call a person approved on an escalation this run
+    // claimed runs as approved — no card check, no second escalation.
+    const approval = approvalFor(call, await approvedCalls(input.host, presence.jobId, input.conversationId));
+    if (approval !== undefined) {
+        await input.log.append({
+            ...callLog(input, logBase),
+            at: new Date().toISOString(),
+            action: "release",
+            outcome: "approved",
+            escalationId: approval.id,
+        });
+        return undefined;
     }
     // Job presence: an unrecognized shell command or an unannotated MCP
     // call is judged for irreversibility first (no judge or a failed
@@ -333,7 +347,9 @@ async function jobRoute(input, fp, key, reasons, logBase) {
         });
         return undefined;
     }
-    if (taken.status !== "none") {
+    // A dismissed hold is no decision: it must not shadow a clearance
+    // (it once blocked its exact call forever, invisibly).
+    if (taken.status !== "none" && taken.status !== "dismissed") {
         // A grant exists in a non-approving state (open, answered-deny):
         // it decides before the clearance path (brief step 1: the grant
         // check first, unchanged from Task 11). Release this call's slot
@@ -411,8 +427,14 @@ async function jobRaise(input, reasons, logBase) {
         };
     }
     return {
-        block: `Not cleared for this job without a person's approval; raised escalation ${id}.`,
+        block: `Not cleared for this job without a person's approval; ${raisedText(raised)}.`,
     };
+}
+/** The raised item, for the block text: a dismissed one is not waiting on anyone. */
+function raisedText(raised) {
+    return raised.status === "dismissed"
+        ? `escalation ${raised.id} for this call was dismissed; restore it in the inbox to decide`
+        : `raised escalation ${raised.id}`;
 }
 /** Why a raise produced no inbox item, for the block text. */
 function noItemReason(raised) {
@@ -443,7 +465,7 @@ async function clearedJobRoute(input, reasons, logBase) {
                 block: `${block}; ${noItemReason(raised)}. Reasons: ${escalateReasons.join("; ")}`,
             };
         }
-        return { block: `${block}; raised escalation ${raised.id}.` };
+        return { block: `${block}; ${raisedText(raised)}.` };
     };
     // 1. No decision model (undefined judge, or the cooldown active →
     // decisionsJudge returned undefined upstream; a thrown judgment →
