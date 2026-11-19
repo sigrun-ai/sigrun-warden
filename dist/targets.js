@@ -7,21 +7,29 @@
  */
 /** One call's card-check targets. */
 export function targetsOf(args) {
-    for (const value of Object.values(args)) {
-        if (Array.isArray(value) &&
-            value.length > 0 &&
-            value.every((item) => typeof item === "string" ||
-                typeof item === "number" ||
-                typeof item === "boolean")) {
-            return value.map(String);
-        }
-    }
+    const key = targetKeyOf(args);
+    if (key !== undefined)
+        return args[key].map(String);
     // state.ts's canonicalize is private; grantKey's digest is not the
     // target TEXT, so re-derive the canonical JSON here (keys sorted,
     // matching state.ts's shape).
     return [canonicalize(args)];
 }
-function canonicalize(value) {
+/** The argument holding the call's target list, or undefined when none does. */
+export function targetKeyOf(args) {
+    for (const [key, value] of Object.entries(args)) {
+        if (Array.isArray(value) &&
+            value.length > 0 &&
+            value.every((item) => typeof item === "string" ||
+                typeof item === "number" ||
+                typeof item === "boolean")) {
+            return key;
+        }
+    }
+    return undefined;
+}
+/** Canonical JSON (object keys sorted). */
+export function canonicalize(value) {
     if (value === null || typeof value !== "object")
         return JSON.stringify(value) ?? "undefined";
     if (Array.isArray(value))

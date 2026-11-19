@@ -6,6 +6,7 @@
  * effective owner (core Task 3).
  */
 import type { ToolHookCall } from "@earendil-works/pi-durable";
+import type { ApprovedCall } from "./approved.js";
 import { argumentsMarkdown } from "./argsmd.js";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
 import type { ConversationId } from "@earendil-works/pi-durable";
@@ -206,4 +207,33 @@ export async function resolveGrant(
 	if (result.kind === "absent") return { status: "absent" };
 	if (result.kind === "error") throw new Error(`escalation.resolve ${result.message}`);
 	return { status: str(result.value.status) ?? "resolved" };
+}
+
+/**
+ * The calls approved by answers the calling conversation has claimed
+ * (`escalation.approved-calls`). No provider, an older provider without
+ * the hook, or a provider error all mean no approvals: the call takes the
+ * ordinary path.
+ */
+export async function approvedCalls(
+	host: SigrunHost,
+	jobId: string,
+	conversationId: ConversationId,
+): Promise<ApprovedCall[]> {
+	const result = unwrap(
+		await host.publishedHooks.call("escalation.approved-calls", { jobId }, { conversationId }),
+	);
+	if (result.kind !== "ok") return [];
+	const calls = result.value.calls;
+	if (!Array.isArray(calls)) return [];
+	return calls.flatMap((entry) => {
+		const record = entry as Record<string, unknown>;
+		const id = str(record.id);
+		const tool = str(record.tool);
+		const args = record.arguments;
+		if (id === undefined || tool === undefined || typeof args !== "object" || args === null) {
+			return [];
+		}
+		return [{ id, tool, arguments: args as Record<string, unknown> }];
+	});
 }

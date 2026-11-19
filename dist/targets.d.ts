@@ -7,3 +7,7 @@
  */
 /** One call's card-check targets. */
 export declare function targetsOf(args: Record<string, unknown>): readonly string[];
+/** The argument holding the call's target list, or undefined when none does. */
+export declare function targetKeyOf(args: Record<string, unknown>): string | undefined;
+/** Canonical JSON (object keys sorted). */
+export declare function canonicalize(value: unknown): string;

@@ -9,6 +9,8 @@ export interface HoldRecord {
     call: string;
     action: "steer" | "hold" | "block" | "escalate" | "release" | "allow-judged" | "warn";
     scores?: Record<string, number>;
+    /** The escalation whose answer released the call (approved calls). */
+    escalationId?: string;
     outcome?: "approved" | "declined" | "replanned" | "escalated" | "abandoned";
 }
 export declare class HoldLog {

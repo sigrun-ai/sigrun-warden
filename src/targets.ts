@@ -7,7 +7,17 @@
  */
 /** One call's card-check targets. */
 export function targetsOf(args: Record<string, unknown>): readonly string[] {
-	for (const value of Object.values(args)) {
+	const key = targetKeyOf(args);
+	if (key !== undefined) return (args[key] as unknown[]).map(String);
+	// state.ts's canonicalize is private; grantKey's digest is not the
+	// target TEXT, so re-derive the canonical JSON here (keys sorted,
+	// matching state.ts's shape).
+	return [canonicalize(args)];
+}
+
+/** The argument holding the call's target list, or undefined when none does. */
+export function targetKeyOf(args: Record<string, unknown>): string | undefined {
+	for (const [key, value] of Object.entries(args)) {
 		if (
 			Array.isArray(value) &&
 			value.length > 0 &&
@@ -18,16 +28,14 @@ export function targetsOf(args: Record<string, unknown>): readonly string[] {
 					typeof item === "boolean",
 			)
 		) {
-			return value.map(String);
+			return key;
 		}
 	}
-	// state.ts's canonicalize is private; grantKey's digest is not the
-	// target TEXT, so re-derive the canonical JSON here (keys sorted,
-	// matching state.ts's shape).
-	return [canonicalize(args)];
+	return undefined;
 }
 
-function canonicalize(value: unknown): string {
+/** Canonical JSON (object keys sorted). */
+export function canonicalize(value: unknown): string {
 	if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
 	if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
 	const record = value as Record<string, unknown>;

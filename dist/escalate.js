@@ -126,3 +126,27 @@ export async function resolveGrant(host, id, outcome, note, conversationId) {
         throw new Error(`escalation.resolve ${result.message}`);
     return { status: str(result.value.status) ?? "resolved" };
 }
+/**
+ * The calls approved by answers the calling conversation has claimed
+ * (`escalation.approved-calls`). No provider, an older provider without
+ * the hook, or a provider error all mean no approvals: the call takes the
+ * ordinary path.
+ */
+export async function approvedCalls(host, jobId, conversationId) {
+    const result = unwrap(await host.publishedHooks.call("escalation.approved-calls", { jobId }, { conversationId }));
+    if (result.kind !== "ok")
+        return [];
+    const calls = result.value.calls;
+    if (!Array.isArray(calls))
+        return [];
+    return calls.flatMap((entry) => {
+        const record = entry;
+        const id = str(record.id);
+        const tool = str(record.tool);
+        const args = record.arguments;
+        if (id === undefined || tool === undefined || typeof args !== "object" || args === null) {
+            return [];
+        }
+        return [{ id, tool, arguments: args }];
+    });
+}
