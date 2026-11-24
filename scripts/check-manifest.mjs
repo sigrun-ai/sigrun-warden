@@ -62,8 +62,8 @@ check(typeof manifest.bugs?.url === "string", "package.json: bugs.url absent");
 check(typeof manifest.homepage === "string", "package.json: homepage absent");
 
 /** Every host module an extension imports must be a peer. The family
- * develops against the pi-durable 1.5.0 host family (peers accept
- * ~1.5.0; devDeps pin 1.5.0 exactly), keeping one type-compatible copy
+ * develops against the pi-durable 1.6.0 host family (peers accept
+ * ~1.6.0; devDeps pin 1.6.0 exactly), keeping one type-compatible copy
  * of chord/pi-ai/pi-durable.
  * @sigrun/shared ships runtime VALUE imports (isUserInput/typedText) — it rides as a
  * peer so consumers' installs resolve it, with the dev file: link to
@@ -75,20 +75,20 @@ check(typeof manifest.homepage === "string", "package.json: homepage absent");
  * copy. */
 const HOST_MODULE_PINS = {
 	"@sigrun/sigrun": ">=0.20.0",
-	"@earendil-works/pi-durable": "~1.5.0",
-	"@earendil-works/pi-ai": "~1.5.0",
-	"@earendil-works/chord": "~1.5.0",
+	"@earendil-works/pi-durable": "~1.6.0",
+	"@earendil-works/pi-ai": "~1.6.0",
+	"@earendil-works/chord": "~1.6.0",
 	typebox: "1.3.27",
 	// Open floor (C5): any shared line carrying the turns helpers
 	// (`isUserInput`/`typedText`) and the decisions types the warden
 	// imports. 0.20.0 is the first published line that does.
 	"@sigrun/shared": ">=0.20.0",
 };
-/** Development happens against pi-durable 1.5.0 (exact). */
+/** Development happens against pi-durable 1.6.0 (exact). */
 const DEV_PIN_OVERRIDES = {
-	"@earendil-works/chord": "1.5.0",
-	"@earendil-works/pi-ai": "1.5.0",
-	"@earendil-works/pi-durable": "1.5.0",
+	"@earendil-works/chord": "1.6.0",
+	"@earendil-works/pi-ai": "1.6.0",
+	"@earendil-works/pi-durable": "1.6.0",
 };
 const peers = manifest.peerDependencies ?? {};
 const devDeps = manifest.devDependencies ?? {};
@@ -109,7 +109,7 @@ for (const [module, spec] of Object.entries(peers)) {
 	const pin = HOST_MODULE_PINS[module];
 	check(
 		spec === pin,
-		`package.json: peerDependencies["${module}"] must be exactly "${pin}" (the 1.5.0-era peers are ranges) (got ${JSON.stringify(spec)})`,
+		`package.json: peerDependencies["${module}"] must be exactly "${pin}" (the 1.6.0-era peers are ranges) (got ${JSON.stringify(spec)})`,
 	);
 	if (module === "@sigrun/shared") {
 		// The shared workspace keeps its file: dev shape (ext-gateway's
