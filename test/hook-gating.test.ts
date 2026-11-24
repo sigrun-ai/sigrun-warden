@@ -7,9 +7,7 @@
  * and the result passes through unchanged.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import type {
-	Context,
-} from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type {
 	HookApi,
 	ToolExecutionResult,

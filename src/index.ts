@@ -3,7 +3,7 @@ import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
 import type { HookApi, ToolExecutionResult, ToolHookCall } from "@earendil-works/pi-durable";
 import type { JsonObject } from "@earendil-works/pi-durable";
 import type { SigrunExtensionResult, SigrunHost } from "@sigrun/sigrun/extension";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 
 import { afterToolGuard } from "./after.js";
 import { annotationFromHookResult, classify } from "./classify.js";

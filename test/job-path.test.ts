@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import type { HookApi, ToolHookCall } from "@earendil-works/pi-durable";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 
 import type { Classification } from "../src/classify.js";
 import type { Card } from "../src/cards.js";

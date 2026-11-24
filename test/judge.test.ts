@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HookApi, ToolExecutionResult, ToolHookCall } from "@earendil-works/pi-durable";
-import type { Context as ChordContext } from "@earendil-works/chord";
+import type { Context as ChordContext } from "@earendil-works/chord/context";
 
 import createWarden from "../src/index.js";
 import { Cooldown, decisionsJudge } from "../src/judge.js";

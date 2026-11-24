@@ -6,7 +6,7 @@
  * clear-ask and the cleared-job path.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ToolExecutionResult, ToolHookCall } from "@earendil-works/pi-durable";
 import type { Judge } from "pi-typesafe";
 

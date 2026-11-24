@@ -5,7 +5,7 @@
  * second card.
  */
 import { awaitWithContext } from "@earendil-works/chord/context";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { JsonObject } from "@earendil-works/pi-durable";
 import type { ToolHookCall } from "@earendil-works/pi-durable";
 import { redact } from "pi-warden";
