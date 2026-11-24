@@ -5,7 +5,7 @@
  * runs only after the per-target card check, everything else blocks +
  * escalates with one-shot grants.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ToolHookCall } from "@earendil-works/pi-durable";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
 import type { ConversationId } from "@earendil-works/pi-durable";

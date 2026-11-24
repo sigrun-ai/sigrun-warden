@@ -26,7 +26,7 @@
  * state mutation is not budgeted, only the notice text is.
  */
 import type { ToolExecutionResult, ToolHookCall } from "@earendil-works/pi-durable";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { Judge } from "pi-typesafe";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { SigrunHost } from "@sigrun/sigrun/extension";

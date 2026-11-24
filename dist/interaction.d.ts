@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ToolHookCall } from "@earendil-works/pi-durable";
 import type { Tree } from "@sigrun/sigrun/blocks";
 import type { SigrunHost } from "@sigrun/sigrun/extension";
